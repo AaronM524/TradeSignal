@@ -4,15 +4,7 @@ import useSWR from 'swr'
 import { SignalCard } from '@/components/signals/signal-card'
 import { QuoteCard } from '@/components/market/quote-card'
 import { Spinner } from '@/components/ui/spinner'
-import {
-  TrendingUp,
-  TrendingDown,
-  Bell,
-  RefreshCw,
-  Eye,
-  Activity,
-  Zap,
-} from 'lucide-react'
+import { TrendingUp, TrendingDown, Bell, RefreshCw, Eye, Activity, Zap } from 'lucide-react'
 import type { TradeSignal, Quote } from '@/lib/types'
 import Link from 'next/link'
 
@@ -22,117 +14,36 @@ const MARKET_INDICES = ['SPY', 'QQQ', 'DIA', 'IWM']
 const CSS = `
   @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;0,900;1,400&family=DM+Mono:wght@300;400;500&family=DM+Sans:wght@300;400;500;600&display=swap');
 
-  .stat-card {
-    background: rgba(232,224,212,0.02);
-    border: 1px solid rgba(232,224,212,0.08);
-    padding: 20px 24px;
-    transition: border-color 0.2s;
-  }
+  .stat-card { background: rgba(232,224,212,0.02); border: 1px solid rgba(232,224,212,0.08); padding: 20px 24px; transition: border-color 0.2s; }
   .stat-card:hover { border-color: rgba(232,224,212,0.15); }
-
-  .stat-label {
-    font-family: "DM Mono", monospace;
-    font-size: 9px;
-    letter-spacing: 0.1em;
-    text-transform: uppercase;
-    color: rgba(232,224,212,0.4);
-    margin-bottom: 10px;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-  }
-
-  .stat-value {
-    font-family: "Playfair Display", serif;
-    font-size: 36px;
-    font-weight: 900;
-    letter-spacing: -0.02em;
-    color: #e8e0d4;
-    line-height: 1;
-  }
-
-  .stat-sub {
-    font-family: "DM Sans", sans-serif;
-    font-size: 12px;
-    color: rgba(232,224,212,0.4);
-    margin-top: 6px;
-    font-weight: 300;
-  }
-
-  .section-title {
-    font-family: "Playfair Display", serif;
-    font-size: 22px;
-    font-weight: 900;
-    letter-spacing: -0.01em;
-    color: #e8e0d4;
-  }
-
-  .section-sub {
-    font-family: "DM Sans", sans-serif;
-    font-size: 13px;
-    color: rgba(232,224,212,0.45);
-    margin-top: 2px;
-    font-weight: 300;
-  }
-
-  .btn-primary {
-    background: #e8e0d4;
-    color: #0a0a0a;
-    border: none;
-    padding: 10px 20px;
-    font-family: "DM Sans", sans-serif;
-    font-size: 12px;
-    font-weight: 600;
-    letter-spacing: 0.05em;
-    text-transform: uppercase;
-    cursor: pointer;
-    transition: opacity 0.15s;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-  }
+  .stat-label { font-family: "DM Mono", monospace; font-size: 9px; letter-spacing: 0.1em; text-transform: uppercase; color: rgba(232,224,212,0.4); margin-bottom: 10px; display: flex; align-items: center; justify-content: space-between; }
+  .stat-value { font-family: "Playfair Display", serif; font-size: 36px; font-weight: 900; letter-spacing: -0.02em; color: #e8e0d4; line-height: 1; }
+  .stat-sub { font-family: "DM Sans", sans-serif; font-size: 12px; color: rgba(232,224,212,0.4); margin-top: 6px; font-weight: 300; }
+  .section-title { font-family: "Playfair Display", serif; font-size: 22px; font-weight: 900; letter-spacing: -0.01em; color: #e8e0d4; }
+  .section-sub { font-family: "DM Sans", sans-serif; font-size: 13px; color: rgba(232,224,212,0.45); margin-top: 2px; font-weight: 300; }
+  .btn-primary { background: #e8e0d4; color: #0a0a0a; border: none; padding: 10px 20px; font-family: "DM Sans", sans-serif; font-size: 12px; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; cursor: pointer; transition: opacity 0.15s; display: flex; align-items: center; gap: 8px; white-space: nowrap; }
   .btn-primary:hover { opacity: 0.85; }
   .btn-primary:disabled { opacity: 0.4; cursor: not-allowed; }
-
-  .btn-ghost {
-    background: transparent;
-    color: rgba(232,224,212,0.55);
-    border: 1px solid rgba(232,224,212,0.15);
-    padding: 8px 16px;
-    font-family: "DM Mono", monospace;
-    font-size: 11px;
-    font-weight: 400;
-    letter-spacing: 0.05em;
-    text-transform: uppercase;
-    cursor: pointer;
-    transition: all 0.15s;
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    text-decoration: none;
-  }
+  .btn-ghost { background: transparent; color: rgba(232,224,212,0.55); border: 1px solid rgba(232,224,212,0.15); padding: 8px 16px; font-family: "DM Mono", monospace; font-size: 11px; letter-spacing: 0.05em; text-transform: uppercase; cursor: pointer; transition: all 0.15s; display: flex; align-items: center; gap: 6px; text-decoration: none; }
   .btn-ghost:hover { color: #e8e0d4; border-color: rgba(232,224,212,0.3); }
-
   .divider { width: 100%; height: 1px; background: rgba(232,224,212,0.07); }
+  .tip-row { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-bottom: 1px solid rgba(232,224,212,0.05); font-family: "DM Sans", sans-serif; font-size: 13px; color: rgba(232,224,212,0.55); font-weight: 300; }
+  .tip-badge { font-family: "DM Mono", monospace; font-size: 10px; padding: 2px 8px; border: 1px solid rgba(232,224,212,0.2); color: rgba(232,224,212,0.7); white-space: nowrap; }
 
-  .tip-row {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    padding: 10px 0;
-    border-bottom: 1px solid rgba(232,224,212,0.05);
-    font-family: "DM Sans", sans-serif;
-    font-size: 13px;
-    color: rgba(232,224,212,0.55);
-    font-weight: 300;
-  }
-  .tip-badge {
-    font-family: "DM Mono", monospace;
-    font-size: 10px;
-    padding: 2px 8px;
-    border: 1px solid rgba(232,224,212,0.2);
-    color: rgba(232,224,212,0.7);
-    white-space: nowrap;
+  .db-header { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 32px; gap: 16px; }
+  .db-stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1px; background: rgba(232,224,212,0.07); margin-bottom: 32px; }
+  .db-market { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1px; background: rgba(232,224,212,0.07); }
+  .db-signals { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+  .db-signals-header { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 20px; gap: 16px; }
+
+  @media (max-width: 768px) {
+    .db-page { padding: 16px !important; }
+    .db-stats { grid-template-columns: repeat(2, 1fr) !important; }
+    .db-market { grid-template-columns: repeat(2, 1fr) !important; }
+    .db-signals { grid-template-columns: 1fr !important; }
+    .db-header { flex-direction: column; align-items: flex-start; }
+    .db-signals-header { flex-direction: column; align-items: flex-start; }
+    .stat-value { font-size: 28px !important; }
   }
 `
 
@@ -167,11 +78,11 @@ export default function DashboardPage() {
   const bearishSignals = signals.filter(s => s.signalType === 'bearish_entry')
 
   return (
-    <div style={{ padding: '32px 40px', fontFamily: '"DM Sans", sans-serif', color: '#e8e0d4', minHeight: '100vh', background: '#0a0a0a' }}>
+    <div className="db-page" style={{ padding: '32px 40px', fontFamily: '"DM Sans", sans-serif', color: '#e8e0d4', minHeight: '100vh', background: '#0a0a0a' }}>
       <style dangerouslySetInnerHTML={{ __html: CSS }} />
 
       {/* Header */}
-      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: '32px' }}>
+      <div className="db-header">
         <div>
           <div style={{ fontFamily: '"DM Mono", monospace', fontSize: '10px', letterSpacing: '0.1em', textTransform: 'uppercase', color: 'rgba(232,224,212,0.4)', marginBottom: '8px' }}>Overview</div>
           <h1 style={{ fontFamily: '"Playfair Display", serif', fontSize: '32px', fontWeight: 900, letterSpacing: '-0.02em', color: '#e8e0d4', lineHeight: 1 }}>Dashboard</h1>
@@ -184,7 +95,7 @@ export default function DashboardPage() {
       </div>
 
       {/* Stats */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '1px', background: 'rgba(232,224,212,0.07)', marginBottom: '32px' }}>
+      <div className="db-stats">
         <div className="stat-card">
           <div className="stat-label">Active Signals <Bell size={11} /></div>
           <div className="stat-value">{signals.length}</div>
@@ -218,7 +129,7 @@ export default function DashboardPage() {
             <Spinner className="h-6 w-6" />
           </div>
         ) : (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '1px', background: 'rgba(232,224,212,0.07)' }}>
+          <div className="db-market">
             {MARKET_INDICES.map(ticker => {
               const quote = indicesData?.quotes?.find((q: Quote) => q.ticker === ticker)
               if (!quote) return (
@@ -237,7 +148,7 @@ export default function DashboardPage() {
 
       {/* Latest Signals */}
       <div>
-        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: '20px' }}>
+        <div className="db-signals-header">
           <div>
             <div className="section-title">Latest Signals</div>
             <div className="section-sub">Trade setups detected by the signal engine</div>
@@ -266,13 +177,9 @@ export default function DashboardPage() {
             </button>
           </div>
         ) : (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px' }}>
+          <div className="db-signals">
             {signals.slice(0, 6).map(signal => (
-              <SignalCard
-                key={signal.id}
-                signal={signal}
-                onViewDetails={(s) => console.log('View signal:', s)}
-              />
+              <SignalCard key={signal.id} signal={signal} onViewDetails={(s) => console.log('View signal:', s)} />
             ))}
           </div>
         )}
