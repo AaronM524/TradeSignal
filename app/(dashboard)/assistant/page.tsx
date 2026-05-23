@@ -24,7 +24,7 @@ function renderMarkdown(text: string) {
 
 const CSS = `
   @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;900&family=DM+Mono:wght@300;400;500&family=DM+Sans:wght@300;400;500;600&display=swap');
-  .chat-input { flex:1;background:rgba(232,224,212,0.04);border:1px solid rgba(232,224,212,0.15);color:#e8e0d4;padding:12px 16px;font-family:"DM Sans",sans-serif;font-size:14px;outline:none;transition:border-color 0.2s;resize:none; }
+  .chat-input { flex:1;background:rgba(232,224,212,0.04);border:1px solid rgba(232,224,212,0.15);color:#e8e0d4;padding:12px 16px;font-family:"DM Sans",sans-serif;font-size:16px;outline:none;transition:border-color 0.2s;resize:none;min-width:0; }
   .chat-input::placeholder { color:rgba(232,224,212,0.25); }
   .chat-input:focus { border-color:rgba(232,224,212,0.4); }
   .chat-send { display:flex;align-items:center;justify-content:center;padding:12px 16px;background:#e8e0d4;color:#0a0a0a;border:none;cursor:pointer;transition:opacity 0.15s;flex-shrink:0; }
@@ -32,6 +32,14 @@ const CSS = `
   .chat-send:disabled { opacity:0.35;cursor:not-allowed; }
   .prompt-btn { display:flex;align-items:center;gap:8px;padding:12px 16px;background:rgba(232,224,212,0.03);border:1px solid rgba(232,224,212,0.1);color:rgba(232,224,212,0.6);font-family:"DM Sans",sans-serif;font-size:13px;cursor:pointer;transition:all 0.15s;text-align:left; }
   .prompt-btn:hover { border-color:rgba(232,224,212,0.25);color:#e8e0d4;background:rgba(232,224,212,0.05); }
+  .prompt-grid { display:grid;grid-template-columns:1fr 1fr;gap:8px;width:100%;max-width:480px; }
+
+  @media (max-width: 768px) {
+    .ai-page { padding: 0 !important; height: 100dvh !important; }
+    .ai-header { padding: 16px !important; margin-bottom: 0 !important; }
+    .prompt-grid { grid-template-columns: 1fr !important; max-width: 100% !important; }
+    .chat-msg { max-width: 88% !important; }
+  }
 `
 
 export default function AssistantPage() {
@@ -56,11 +64,11 @@ export default function AssistantPage() {
   }
 
   return (
-    <div style={{ padding:'32px 40px', fontFamily:'"DM Sans",sans-serif', color:'#e8e0d4', height:'100vh', display:'flex', flexDirection:'column', background:'#0a0a0a', boxSizing:'border-box' }}>
+    <div className="ai-page" style={{ padding:'32px 40px', fontFamily:'"DM Sans",sans-serif', color:'#e8e0d4', height:'100vh', display:'flex', flexDirection:'column', background:'#0a0a0a', boxSizing:'border-box' }}>
       <style dangerouslySetInnerHTML={{ __html: CSS }} />
 
       {/* Header */}
-      <div style={{ marginBottom:'24px', flexShrink:0 }}>
+      <div className="ai-header" style={{ marginBottom:'24px', flexShrink:0 }}>
         <div style={{ fontFamily:'"DM Mono",monospace', fontSize:'10px', letterSpacing:'0.1em', textTransform:'uppercase', color:'rgba(232,224,212,0.4)', marginBottom:'8px' }}>AI</div>
         <h1 style={{ fontFamily:'"Playfair Display",serif', fontSize:'32px', fontWeight:900, letterSpacing:'-0.02em', color:'#e8e0d4', lineHeight:1 }}>AI Assistant</h1>
         <p style={{ fontSize:'14px', color:'rgba(232,224,212,0.45)', marginTop:'6px', fontWeight:300 }}>Ask questions about stocks, setups, and trading strategies</p>
@@ -70,7 +78,7 @@ export default function AssistantPage() {
       <div style={{ flex:1, border:'1px solid rgba(232,224,212,0.08)', display:'flex', flexDirection:'column', minHeight:0 }}>
         {/* Chat header */}
         <div style={{ padding:'14px 20px', borderBottom:'1px solid rgba(232,224,212,0.07)', display:'flex', alignItems:'center', gap:'10px', flexShrink:0 }}>
-          <div style={{ width:32, height:32, border:'1px solid rgba(232,224,212,0.15)', display:'flex', alignItems:'center', justifyContent:'center' }}>
+          <div style={{ width:32, height:32, border:'1px solid rgba(232,224,212,0.15)', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
             <Bot size={14} style={{ color:'rgba(232,224,212,0.6)' }} />
           </div>
           <div>
@@ -82,7 +90,7 @@ export default function AssistantPage() {
         {/* Messages */}
         <div style={{ flex:1, overflowY:'auto', padding:'24px', minHeight:0 }}>
           {messages.length === 0 ? (
-            <div style={{ display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', height:'100%', textAlign:'center' }}>
+            <div style={{ display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', height:'100%', textAlign:'center', padding:'0 16px' }}>
               <div style={{ width:56, height:56, border:'1px solid rgba(232,224,212,0.12)', display:'flex', alignItems:'center', justifyContent:'center', marginBottom:'20px' }}>
                 <Sparkles size={22} style={{ color:'rgba(232,224,212,0.4)' }} />
               </div>
@@ -90,7 +98,7 @@ export default function AssistantPage() {
               <p style={{ fontSize:'13px', color:'rgba(232,224,212,0.35)', marginBottom:'32px', fontWeight:300, maxWidth:'320px' }}>
                 Ask me to analyze stocks, explain trade setups, or help with position sizing
               </p>
-              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'8px', width:'100%', maxWidth:'480px' }}>
+              <div className="prompt-grid">
                 {SUGGESTED_PROMPTS.map((p, i) => (
                   <button key={i} className="prompt-btn" onClick={() => sendMessage({ text: p.text })}>
                     <p.icon size={14} style={{ color:'rgba(232,224,212,0.4)', flexShrink:0 }} />
@@ -108,12 +116,13 @@ export default function AssistantPage() {
                       <Bot size={12} style={{ color:'rgba(232,224,212,0.5)' }} />
                     </div>
                   )}
-                  <div style={{
+                  <div className="chat-msg" style={{
                     maxWidth:'75%', padding:'12px 16px', fontSize:'14px', lineHeight:1.65,
                     background: message.role === 'user' ? '#e8e0d4' : 'rgba(232,224,212,0.04)',
                     color: message.role === 'user' ? '#0a0a0a' : '#e8e0d4',
                     border: message.role === 'user' ? 'none' : '1px solid rgba(232,224,212,0.08)',
                     fontFamily: '"DM Sans", sans-serif',
+                    wordBreak: 'break-word',
                   }}>
                     {message.parts.map((part, index) => {
                       if (part.type === 'text') return <div key={index}>{renderMarkdown(part.text)}</div>
@@ -153,7 +162,7 @@ export default function AssistantPage() {
 
         {/* Input */}
         <div style={{ borderTop:'1px solid rgba(232,224,212,0.07)', padding:'16px 20px', flexShrink:0 }}>
-          <form onSubmit={handleSubmit} style={{ display:'flex', gap:'0' }}>
+          <form onSubmit={handleSubmit} style={{ display:'flex' }}>
             <input
               className="chat-input"
               value={input}
