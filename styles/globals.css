@@ -128,3 +128,134 @@
   color: var(--accent-foreground) !important;
 }
 
+/* ── Global Mobile Responsive Fixes ── */
+@media (max-width: 768px) {
+
+  /* Reduce padding on all dashboard pages */
+  .dashboard-page {
+    padding: 16px !important;
+  }
+
+  /* Two col grids → single col */
+  .hero-grid,
+  .score-grid,
+  .st-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  /* 3 and 4 col grids → single col */
+  .feature-grid,
+  .feat-grid,
+  .sig-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  /* Stat strip → 2 col */
+  .stat-grid {
+    grid-template-columns: repeat(2, 1fr) !important;
+  }
+
+  /* Signal cards → single col */
+  div[style*="repeat(3,1fr)"],
+  div[style*="repeat(3, 1fr)"] {
+    grid-template-columns: 1fr !important;
+  }
+
+  /* Scanner filter grid → stack */
+  div[style*="1fr 200px 160px auto auto auto"] {
+    grid-template-columns: 1fr !important;
+  }
+
+  /* Reduce heading sizes */
+  h1 { font-size: clamp(28px, 6vw, 40px) !important; }
+
+  /* Tables scroll horizontally */
+  .wl-table, .sc-table {
+    font-size: 11px !important;
+  }
+
+  /* Chat input — prevent iOS zoom */
+  .chat-input {
+    font-size: 16px !important;
+  }
+
+  /* Landing sections */
+  section {
+    padding-left: 20px !important;
+    padding-right: 20px !important;
+  }
+
+  /* Watchlist/scanner buttons wrap */
+  .wl-btn, .sc-btn {
+    font-size: 9px !important;
+    padding: 6px 10px !important;
+  }
+
+  /* Top bar email truncate */
+  .topbar-email {
+    max-width: 120px !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    white-space: nowrap !important;
+  }
+}
+
+@media (max-width: 480px) {
+  /* Very small screens — hide email in topbar */
+  .topbar-email {
+    display: none !important;
+  }
+
+  /* Landing hero */
+  h1 { font-size: 28px !important; }
+
+  /* Signal cards full width */
+  .sc-card { margin: 0 !important; }
+}
+
+/* ── Responsive Grid Utilities ── */
+.grid-2col { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+.grid-3col { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+.grid-4col { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1px; }
+.grid-sidebar { display: grid; grid-template-columns: 1fr 420px; gap: 80px; }
+.grid-settings { display: grid; grid-template-columns: 1fr 320px; gap: 20px; }
+.grid-scanner { display: grid; grid-template-columns: 1fr 200px 160px auto auto auto; gap: 20px; }
+
+.page-pad { padding: 32px 40px; }
+
+@media (max-width: 1024px) {
+  .grid-3col { grid-template-columns: repeat(2, 1fr); }
+  .grid-4col { grid-template-columns: repeat(2, 1fr); }
+  .grid-sidebar { grid-template-columns: 1fr; gap: 40px; }
+}
+
+@media (max-width: 768px) {
+  .grid-2col,
+  .grid-3col,
+  .grid-4col,
+  .grid-sidebar,
+  .grid-settings,
+  .grid-scanner { grid-template-columns: 1fr !important; }
+
+  .page-pad { padding: 16px !important; }
+
+  /* Prevent text overflow */
+  * { word-break: break-word; }
+
+  /* Tables always scroll */
+  table { min-width: 500px; }
+  .table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+
+  /* Buttons stack */
+  .btn-row { flex-direction: column !important; align-items: stretch !important; }
+  .btn-row > * { width: 100% !important; justify-content: center !important; }
+
+  /* Headings scale down */
+  .page-title { font-size: 26px !important; }
+
+  /* Signal cards single col */
+  .signals-grid { grid-template-columns: 1fr !important; }
+
+  /* Top bar */
+  .topbar-email { display: none !important; }
+}

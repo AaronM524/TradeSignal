@@ -35,7 +35,11 @@ const CSS = `
   .btn-save { display: flex; align-items: center; gap: 8px; padding: 12px 28px; background: #e8e0d4; color: #0a0a0a; border: none; font-family: "DM Sans", sans-serif; font-size: 13px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; cursor: pointer; transition: opacity 0.15s; width: 100%; justify-content: center; }
   .btn-save:hover { opacity: 0.85; }
   .btn-save:disabled { opacity: 0.4; cursor: not-allowed; }
-  .btn-save.saved { background: rgba(126,200,160,0.12); color: #7ec8a0; border: 1px solid rgba(126,200,160,0.3); }
+  @media (max-width: 768px) {
+    .st-grid { grid-template-columns: 1fr !important; }
+    .st-page { padding: 16px !important; }
+    .st-box-header { flex-wrap: wrap; }
+  }
 `
 
 export default function SettingsPage() {
@@ -96,7 +100,7 @@ export default function SettingsPage() {
   }
 
   return (
-    <div style={{ padding: '32px 40px', fontFamily: '"DM Sans", sans-serif', color: '#e8e0d4', minHeight: '100vh', background: '#0a0a0a' }}>
+    <div className="st-page" style={{ padding: '32px 40px', fontFamily: '"DM Sans", sans-serif', color: '#e8e0d4', minHeight: '100vh', background: '#0a0a0a' }}>
       <style dangerouslySetInnerHTML={{ __html: CSS }} />
 
       {/* Header */}
@@ -107,7 +111,7 @@ export default function SettingsPage() {
       </div>
 
       {/* Two column layout */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 320px', gap: '20px', alignItems: 'start' }}>
+      <div className="st-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 320px', gap: '20px', alignItems: 'start' }}>
 
         {/* Left — Signal Detection */}
         <div className="st-box">
