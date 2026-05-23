@@ -46,8 +46,22 @@ const CSS = `
   .sc-table tr:hover td { background:rgba(232,224,212,0.02); }
   .sc-table tr:last-child td { border-bottom:none; }
   .sc-chip { display:inline-flex;align-items:center;gap:3px;padding:2px 7px;border:1px solid rgba(232,224,212,0.15);font-family:"DM Mono",monospace;font-size:10px;color:rgba(232,224,212,0.5); }
+  .sc-chip.bull { border-color:rgba(126,200,160,0.3);color:#7ec8a0; }
+  .sc-chip.bear { border-color:rgba(200,126,126,0.3);color:#c87e7e; }
   .sc-progress-bar { height:2px;background:rgba(232,224,212,0.08);border-radius:2px;overflow:hidden;margin-top:12px; }
   .sc-progress-fill { height:100%;background:#e8e0d4;border-radius:2px;transition:width 0.4s ease; }
+
+  .sc-filter-grid { display:grid;grid-template-columns:1fr 200px 160px auto auto auto;gap:20px;align-items:end;margin-bottom:16px; }
+  .sc-toggles { display:flex;gap:20px; }
+
+  @media (max-width: 768px) {
+    .sc-page { padding: 16px !important; }
+    .sc-filter-grid { grid-template-columns: 1fr !important; gap: 16px !important; }
+    .sc-toggles { flex-direction: row; gap: 16px; }
+    .sc-table th:nth-child(5), .sc-table td:nth-child(5),
+    .sc-table th:nth-child(6), .sc-table td:nth-child(6) { display: none; }
+    .sc-input { font-size: 16px !important; }
+  }
 `
 
 export default function ScannerPage() {
@@ -98,22 +112,22 @@ export default function ScannerPage() {
   }
 
   return (
-    <div style={{ padding:'32px 40px', fontFamily:'"DM Sans",sans-serif', color:'#e8e0d4', minHeight:'100vh', background:'#0a0a0a' }}>
+    <div className="sc-page" style={{ padding:'32px 40px', fontFamily:'"DM Sans",sans-serif', color:'#e8e0d4', minHeight:'100vh', background:'#0a0a0a' }}>
       <style dangerouslySetInnerHTML={{ __html: CSS }} />
 
-      {/* Page header */}
+      {/* Header */}
       <div style={{ marginBottom:'28px' }}>
         <div style={{ fontFamily:'"DM Mono",monospace', fontSize:'10px', letterSpacing:'0.1em', textTransform:'uppercase', color:'rgba(232,224,212,0.4)', marginBottom:'8px' }}>Market</div>
         <h1 style={{ fontFamily:'"Playfair Display",serif', fontSize:'32px', fontWeight:900, letterSpacing:'-0.02em', color:'#e8e0d4', lineHeight:1 }}>Stock Scanner</h1>
         <p style={{ fontSize:'14px', color:'rgba(232,224,212,0.45)', marginTop:'6px', fontWeight:300 }}>Scan any stock with custom technical filters</p>
       </div>
 
-      {/* Filter bar — horizontal */}
+      {/* Filter bar */}
       <div style={{ border:'1px solid rgba(232,224,212,0.08)', padding:'20px 24px', marginBottom:'16px' }}>
-        <div style={{ display:'grid', gridTemplateColumns:'1fr 200px 160px auto auto auto', gap:'20px', alignItems:'end', marginBottom:'16px' }}>
+        <div className="sc-filter-grid">
           <div>
             <label className="sc-label">Tickers (comma separated)</label>
-            <input className="sc-input" placeholder="AAPL, MSFT... (empty = top 20 stocks)" value={customTickers} onChange={e => setCustomTickers(e.target.value.toUpperCase())} />
+            <input className="sc-input" placeholder="AAPL, MSFT... (empty = top 20)" value={customTickers} onChange={e => setCustomTickers(e.target.value.toUpperCase())} />
           </div>
           <div>
             <label className="sc-label">RSI Range: {minRSI[0]} — {maxRSI[0]}</label>
@@ -154,7 +168,7 @@ export default function ScannerPage() {
           </button>
         </div>
 
-        {/* Sectors + Quick scans in one row */}
+        {/* Sectors + Quick */}
         <div style={{ display:'flex', alignItems:'center', gap:'6px', flexWrap:'wrap', paddingTop:'14px', borderTop:'1px solid rgba(232,224,212,0.06)' }}>
           <span style={{ fontFamily:'"DM Mono",monospace', fontSize:'9px', color:'rgba(232,224,212,0.3)', letterSpacing:'0.08em', marginRight:'4px' }}>SECTORS:</span>
           {Object.entries(SECTOR_TICKERS).map(([sector, tickers]) => (
@@ -181,12 +195,12 @@ export default function ScannerPage() {
         </div>
 
         {isScanning ? (
-          <div style={{ display:'flex', flexDirection:'column', alignItems:'center', padding:'48px 64px' }}>
+          <div style={{ display:'flex', flexDirection:'column', alignItems:'center', padding:'48px 24px' }}>
             <Spinner className="h-8 w-8" />
             <p style={{ fontFamily:'"DM Mono",monospace', fontSize:'11px', color:'rgba(232,224,212,0.5)', marginTop:'16px', letterSpacing:'0.06em' }}>
               SCANNING {scannedCount} / {totalTickers}
             </p>
-            <div style={{ width:'240px', marginTop:'12px' }}>
+            <div style={{ width:'200px', marginTop:'12px' }}>
               <div className="sc-progress-bar">
                 <div className="sc-progress-fill" style={{ width: totalTickers > 0 ? `${(scannedCount / totalTickers) * 100}%` : '0%' }} />
               </div>
@@ -196,14 +210,14 @@ export default function ScannerPage() {
             </p>
           </div>
         ) : results.length === 0 ? (
-          <div style={{ display:'flex', flexDirection:'column', alignItems:'center', padding:'64px' }}>
+          <div style={{ display:'flex', flexDirection:'column', alignItems:'center', padding:'64px 24px' }}>
             <BarChart3 size={32} strokeWidth={1} style={{ color:'rgba(232,224,212,0.2)', marginBottom:'16px' }} />
             <div style={{ fontFamily:'"Playfair Display",serif', fontSize:'20px', fontWeight:700, color:'rgba(232,224,212,0.4)', marginBottom:'8px' }}>No results yet</div>
             <p style={{ fontSize:'13px', color:'rgba(232,224,212,0.3)', fontWeight:300 }}>Configure your filters and click Run Scan</p>
           </div>
         ) : (
-          <div style={{ overflowX:'auto' }}>
-            <table className="sc-table">
+          <div style={{ overflowX:'auto', WebkitOverflowScrolling:'touch' } as React.CSSProperties}>
+            <table className="sc-table" style={{ minWidth:'500px' }}>
               <thead>
                 <tr>
                   <th>Ticker</th>
@@ -233,11 +247,11 @@ export default function ScannerPage() {
                       </td>
                       <td style={{ textAlign:'right' }}>
                         <span className={`sc-chip ${indicators.macdCrossover === 'bullish' ? 'bull' : indicators.macdCrossover === 'bearish' ? 'bear' : ''}`}>
-                          {indicators.macdCrossover === 'bullish' ? '▲ Bull Cross' : indicators.macdCrossover === 'bearish' ? '▼ Bear Cross' : indicators.macd > indicators.macdSignal ? 'Bull' : 'Bear'}
+                          {indicators.macdCrossover === 'bullish' ? '▲ Bull' : indicators.macdCrossover === 'bearish' ? '▼ Bear' : indicators.macd > indicators.macdSignal ? 'Bull' : 'Bear'}
                         </span>
                       </td>
                       <td style={{ textAlign:'right' }}>
-                        <span className={`sc-chip ${bullStack ? 'bull' : 'bear'}`}>{bullStack ? '▲ Bullish' : '▼ Bearish'}</span>
+                        <span className={`sc-chip ${bullStack ? 'bull' : 'bear'}`}>{bullStack ? '▲' : '▼'} {bullStack ? 'Bull' : 'Bear'}</span>
                       </td>
                     </tr>
                   )
@@ -248,15 +262,15 @@ export default function ScannerPage() {
         )}
       </div>
 
-      {/* Default universe expandable */}
+      {/* Default universe */}
       <div style={{ border:'1px solid rgba(232,224,212,0.07)', padding:'16px 24px' }}>
         <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom: showAllTickers ? '14px' : '0' }}>
           <span style={{ fontFamily:'"DM Mono",monospace', fontSize:'10px', letterSpacing:'0.1em', textTransform:'uppercase', color:'rgba(232,224,212,0.4)' }}>
-            Default Universe ({DEFAULT_TICKERS.length} stocks — fastest scan)
+            Default Universe ({DEFAULT_TICKERS.length} stocks)
           </span>
           <button className="sc-btn" onClick={() => setShowAllTickers(!showAllTickers)} style={{ padding:'4px 10px' }}>
             {showAllTickers ? <ChevronUp size={11} /> : <ChevronDown size={11} />}
-            {showAllTickers ? 'Hide' : 'Show All'}
+            {showAllTickers ? 'Hide' : 'Show'}
           </button>
         </div>
         {showAllTickers && (
