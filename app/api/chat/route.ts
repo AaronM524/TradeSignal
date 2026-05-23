@@ -13,9 +13,7 @@ const groq = createGroq({ apiKey: process.env.GROQ_API_KEY })
 export const maxDuration = 60
 
 function getBaseUrl() {
-  if (process.env.VERCEL_URL) {
-    return `https://${process.env.VERCEL_URL}`
-  }
+  if (process.env.VERCEL_URL) return `https://${process.env.VERCEL_URL}`
   return 'http://localhost:3000'
 }
 
@@ -32,14 +30,9 @@ const tradingTools = {
           fetch(`${baseUrl}/api/market/quote?ticker=${ticker}`),
           fetch(`${baseUrl}/api/market/indicators?ticker=${ticker}`)
         ])
-
-        if (!quoteRes.ok || !indicatorsRes.ok) {
-          return { error: `Could not fetch data for ${ticker}` }
-        }
-
+        if (!quoteRes.ok || !indicatorsRes.ok) return { error: `Could not fetch data for ${ticker}` }
         const quote = await quoteRes.json()
         const indicators = await indicatorsRes.json()
-
         return {
           ticker,
           price: quote.price,
@@ -57,7 +50,7 @@ const tradingTools = {
           ema21: indicators.ema21,
           relativeVolume: indicators.relativeVolume,
         }
-      } catch (error) {
+      } catch {
         return { error: `Failed to analyze ${ticker}` }
       }
     },
@@ -72,30 +65,20 @@ const tradingTools = {
       try {
         const baseUrl = getBaseUrl()
         const res = await fetch(`${baseUrl}/api/signals/scan?minScore=${minScore}`)
-
-        if (!res.ok) {
-          return { error: 'Could not fetch signals' }
-        }
-
+        if (!res.ok) return { error: 'Could not fetch signals' }
         const data = await res.json()
         return {
           signalCount: data.signalCount,
           scannedCount: data.scannedCount,
           topSignals: data.signals.slice(0, 5).map((s: {
-            ticker: string
-            score: number
-            confidence: string
-            signalType: string
-            triggers: Array<{ type: string }>
+            ticker: string; score: number; confidence: string
+            signalType: string; triggers: Array<{ type: string }>
           }) => ({
-            ticker: s.ticker,
-            score: s.score,
-            confidence: s.confidence,
-            signalType: s.signalType,
-            triggerCount: s.triggers.length,
+            ticker: s.ticker, score: s.score, confidence: s.confidence,
+            signalType: s.signalType, triggerCount: s.triggers.length,
           })),
         }
-      } catch (error) {
+      } catch {
         return { error: 'Failed to fetch signals' }
       }
     },
@@ -114,12 +97,8 @@ const tradingTools = {
       const riskPerShare = Math.abs(entryPrice - stopLoss)
       const shares = Math.floor(riskAmount / riskPerShare)
       const positionValue = shares * entryPrice
-
       return {
-        shares,
-        positionValue,
-        riskAmount,
-        riskPerShare,
+        shares, positionValue, riskAmount, riskPerShare,
         percentOfAccount: ((positionValue / accountSize) * 100).toFixed(2),
       }
     },
@@ -128,6 +107,8 @@ const tradingTools = {
 
 const systemPrompt = `You are TradeSignal AI, a helpful trading assistant that helps users understand market setups and technical analysis.
 
+Today's date: ${new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+
 Your capabilities:
 - Analyze stocks using technical indicators (RSI, MACD, VWAP, moving averages)
 - Explain trade setups in plain English
@@ -135,12 +116,13 @@ Your capabilities:
 - Identify potential entry points, stop losses, and targets
 
 Guidelines:
-1. Always emphasize risk management - never encourage over-leveraging
+1. Always emphasize risk management — never encourage over-leveraging
 2. Remind users that past performance doesn't guarantee future results
-3. Explain the "why" behind signals - help users learn
+3. Explain the "why" behind signals — help users learn
 4. Be concise but thorough in your analysis
 5. When discussing setups, mention both bullish and bearish scenarios
 6. Always suggest a stop loss and risk/reward ratio
+7. After giving analysis, suggest 2-3 natural follow-up questions the user might want to ask, formatted as: "You might also want to ask: ..."
 
 When analyzing stocks:
 - RSI < 30 is oversold (potential bounce)
@@ -155,12 +137,17 @@ export async function POST(req: Request) {
   const { messages }: { messages: UIMessage[] } = await req.json()
 
   const result = streamText({
-    model: groq('llama-3.1-8b-instant'),
+    model: groq('llama-3.3-70b-versatile'),
     system: systemPrompt,
     messages: await convertToModelMessages(messages),
     tools: tradingTools,
     stopWhen: stepCountIs(20),
   })
 
-  return result.toUIMessageStreamResponse()
+  return result.toUIMessageStreamResponse({
+    onError: (error) => {
+      console.error('Chat stream error:', error)
+      return error instanceof Error ? error.message : 'Unknown error'
+    },
+  })
 }
