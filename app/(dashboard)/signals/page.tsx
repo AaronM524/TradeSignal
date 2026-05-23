@@ -22,6 +22,21 @@ const CSS = `
   .stat-card { background:rgba(232,224,212,0.02);border:1px solid rgba(232,224,212,0.08);padding:20px 24px;cursor:pointer;transition:all 0.2s; }
   .stat-card:hover { border-color:rgba(232,224,212,0.15); }
   .stat-card.active { border-color:rgba(232,224,212,0.35);background:rgba(232,224,212,0.04); }
+
+  .sig-header { display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:32px;gap:16px; }
+  .sig-controls { display:flex;gap:8px;align-items:center;flex-wrap:wrap; }
+  .sig-stats { display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:rgba(232,224,212,0.07);margin-bottom:32px; }
+  .sig-grid { display:grid;grid-template-columns:repeat(3,1fr);gap:16px; }
+  .sig-method { display:grid;grid-template-columns:repeat(2,1fr);gap:16px; }
+
+  @media (max-width: 768px) {
+    .sig-page { padding: 16px !important; }
+    .sig-header { flex-direction: column; }
+    .sig-stats { grid-template-columns: 1fr !important; }
+    .sig-grid { grid-template-columns: 1fr !important; }
+    .sig-method { grid-template-columns: 1fr !important; }
+    .sig-tab { padding: 8px 10px; font-size: 9px; }
+  }
 `
 
 export default function SignalsPage() {
@@ -53,17 +68,17 @@ export default function SignalsPage() {
   const tabSignals = tab === 'high' ? high : tab === 'medium' ? medium : filtered
 
   return (
-    <div style={{ padding:'32px 40px', fontFamily:'"DM Sans",sans-serif', color:'#e8e0d4', minHeight:'100vh', background:'#0a0a0a' }}>
+    <div className="sig-page" style={{ padding:'32px 40px', fontFamily:'"DM Sans",sans-serif', color:'#e8e0d4', minHeight:'100vh', background:'#0a0a0a' }}>
       <style dangerouslySetInnerHTML={{ __html: CSS }} />
 
       {/* Header */}
-      <div style={{ display:'flex', alignItems:'flex-start', justifyContent:'space-between', marginBottom:'32px' }}>
+      <div className="sig-header">
         <div>
           <div style={{ fontFamily:'"DM Mono",monospace', fontSize:'10px', letterSpacing:'0.1em', textTransform:'uppercase', color:'rgba(232,224,212,0.4)', marginBottom:'8px' }}>Detection</div>
           <h1 style={{ fontFamily:'"Playfair Display",serif', fontSize:'32px', fontWeight:900, letterSpacing:'-0.02em', color:'#e8e0d4', lineHeight:1 }}>Trade Signals</h1>
           <p style={{ fontSize:'14px', color:'rgba(232,224,212,0.45)', marginTop:'6px', fontWeight:300 }}>Automated detection of potential trade setups</p>
         </div>
-        <div style={{ display:'flex', gap:'8px', alignItems:'center' }}>
+        <div className="sig-controls">
           <select className="sig-select" value={minScore} onChange={e => setMinScore(e.target.value)}>
             <option value="30">Score 30+</option>
             <option value="40">Score 40+</option>
@@ -79,7 +94,7 @@ export default function SignalsPage() {
       </div>
 
       {/* Stat cards */}
-      <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:'1px', background:'rgba(232,224,212,0.07)', marginBottom:'32px' }}>
+      <div className="sig-stats">
         <div className={`stat-card ${signalFilter==='all'?'active':''}`} onClick={() => setSignalFilter('all')}>
           <div style={{ fontFamily:'"DM Mono",monospace', fontSize:'9px', letterSpacing:'0.1em', textTransform:'uppercase', color:'rgba(232,224,212,0.4)', marginBottom:'10px', display:'flex', justifyContent:'space-between' }}>All Signals <Bell size={11} /></div>
           <div style={{ fontFamily:'"Playfair Display",serif', fontSize:'36px', fontWeight:900, color:'#e8e0d4', lineHeight:1 }}>{filtered.length}</div>
@@ -98,7 +113,7 @@ export default function SignalsPage() {
       </div>
 
       {/* Tabs */}
-      <div style={{ display:'flex', borderBottom:'1px solid rgba(232,224,212,0.08)', marginBottom:'24px' }}>
+      <div style={{ display:'flex', borderBottom:'1px solid rgba(232,224,212,0.08)', marginBottom:'24px', overflowX:'auto' }}>
         {([['high','High Confidence',high.length],['medium','Medium',medium.length],['all','All',filtered.length]] as const).map(([id,label,count]) => (
           <button key={id} className={`sig-tab ${tab===id?'active':''}`} onClick={() => setTab(id)}>
             {label} <span style={{ opacity:0.5, marginLeft:'4px' }}>({count})</span>
@@ -121,7 +136,7 @@ export default function SignalsPage() {
           <p style={{ fontSize:'13px', color:'rgba(232,224,212,0.3)', fontWeight:300 }}>Click Scan Now to analyze the market</p>
         </div>
       ) : (
-        <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:'16px' }}>
+        <div className="sig-grid">
           {tabSignals.map(signal => <SignalCard key={signal.id} signal={signal} />)}
         </div>
       )}
@@ -129,7 +144,7 @@ export default function SignalsPage() {
       {/* Methodology */}
       <div style={{ marginTop:'40px', border:'1px solid rgba(232,224,212,0.07)', padding:'24px' }}>
         <div style={{ fontFamily:'"DM Mono",monospace', fontSize:'10px', letterSpacing:'0.1em', textTransform:'uppercase', color:'rgba(232,224,212,0.35)', marginBottom:'16px' }}>Signal Detection Methodology</div>
-        <div style={{ display:'grid', gridTemplateColumns:'repeat(2,1fr)', gap:'16px' }}>
+        <div className="sig-method">
           {[
             { title:'Momentum', items:['RSI reversals from oversold/overbought','MACD crossovers'] },
             { title:'Trend', items:['Moving average alignment (9/21 EMA)','Golden/Death cross context'] },
