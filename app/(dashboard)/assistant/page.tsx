@@ -4,7 +4,7 @@ import { useState, useRef, useEffect } from 'react'
 import { useChat } from '@ai-sdk/react'
 import { DefaultChatTransport } from 'ai'
 import { Spinner } from '@/components/ui/spinner'
-import { Bot, User, Send, TrendingUp, BarChart3, Calculator, Sparkles, Trash2, AlertCircle } from 'lucide-react'
+import { Bot, User, Send, TrendingUp, BarChart3, Calculator, Sparkles } from 'lucide-react'
 
 const SUGGESTED_PROMPTS = [
   { icon: TrendingUp, text: 'Analyze NVDA for me' },
@@ -12,18 +12,6 @@ const SUGGESTED_PROMPTS = [
   { icon: Calculator, text: 'Help me size a position with $10k account' },
   { icon: Sparkles, text: 'Explain what RSI oversold means' },
 ]
-
-const TOOL_LABELS: Record<string, (input: any) => string> = {
-  analyzeStock: (input) => `Fetching ${input?.ticker ?? 'stock'} data...`,
-  getSignals: (input) => `Scanning for signals (score ${input?.minScore ?? 50}+)...`,
-  calculatePositionSize: () => `Calculating position size...`,
-}
-
-const TOOL_DONE_LABELS: Record<string, (input: any) => string> = {
-  analyzeStock: (input) => `✓ Fetched ${input?.ticker ?? 'stock'} data`,
-  getSignals: () => `✓ Signals loaded`,
-  calculatePositionSize: () => `✓ Position size calculated`,
-}
 
 function renderMarkdown(text: string) {
   const lines = text.split('\n')
@@ -36,7 +24,7 @@ function renderMarkdown(text: string) {
 
 const CSS = `
   @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;900&family=DM+Mono:wght@300;400;500&family=DM+Sans:wght@300;400;500;600&display=swap');
-  .chat-input { flex:1;background:rgba(232,224,212,0.04);border:1px solid rgba(232,224,212,0.15);color:#e8e0d4;padding:12px 16px;font-family:"DM Sans",sans-serif;font-size:16px;outline:none;transition:border-color 0.2s;min-width:0; }
+  .chat-input { flex:1;background:rgba(232,224,212,0.04);border:1px solid rgba(232,224,212,0.15);color:#e8e0d4;padding:12px 16px;font-family:"DM Sans",sans-serif;font-size:16px;outline:none;transition:border-color 0.2s;resize:none;min-width:0; }
   .chat-input::placeholder { color:rgba(232,224,212,0.25); }
   .chat-input:focus { border-color:rgba(232,224,212,0.4); }
   .chat-send { display:flex;align-items:center;justify-content:center;padding:12px 16px;background:#e8e0d4;color:#0a0a0a;border:none;cursor:pointer;transition:opacity 0.15s;flex-shrink:0; }
@@ -45,11 +33,6 @@ const CSS = `
   .prompt-btn { display:flex;align-items:center;gap:8px;padding:12px 16px;background:rgba(232,224,212,0.03);border:1px solid rgba(232,224,212,0.1);color:rgba(232,224,212,0.6);font-family:"DM Sans",sans-serif;font-size:13px;cursor:pointer;transition:all 0.15s;text-align:left; }
   .prompt-btn:hover { border-color:rgba(232,224,212,0.25);color:#e8e0d4;background:rgba(232,224,212,0.05); }
   .prompt-grid { display:grid;grid-template-columns:1fr 1fr;gap:8px;width:100%;max-width:480px; }
-  .clear-btn { display:flex;align-items:center;gap:5px;background:none;border:1px solid rgba(232,224,212,0.12);color:rgba(232,224,212,0.35);padding:5px 10px;font-family:"DM Mono",monospace;font-size:9px;letter-spacing:0.06em;text-transform:uppercase;cursor:pointer;transition:all 0.15s; }
-  .clear-btn:hover { border-color:rgba(200,126,126,0.4);color:#c87e7e; }
-  .tool-pill { display:inline-flex;align-items:center;gap:6px;margin:6px 0;padding:6px 10px;border:1px solid rgba(232,224,212,0.1);font-family:"DM Mono",monospace;font-size:10px;color:rgba(232,224,212,0.45);letter-spacing:0.04em; }
-  .tool-pill.done { border-color:rgba(126,200,160,0.2);color:rgba(126,200,160,0.7); }
-  .error-msg { display:flex;align-items:center;gap:8px;padding:12px 16px;border:1px solid rgba(200,126,126,0.25);background:rgba(200,126,126,0.06);font-family:"DM Sans",sans-serif;font-size:13px;color:#c87e7e; }
 
   @media (max-width: 768px) {
     .ai-page { padding: 0 !important; height: 100dvh !important; }
@@ -61,32 +44,23 @@ const CSS = `
 
 export default function AssistantPage() {
   const [input, setInput] = useState('')
-  const [hasError, setHasError] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
-  const { messages, sendMessage, status, setMessages } = useChat({
+  const { messages, sendMessage, status } = useChat({
     transport: new DefaultChatTransport({ api: '/api/chat' }),
-    onError: () => setHasError(true),
   })
 
   const isLoading = status === 'streaming' || status === 'submitted'
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-    setHasError(false)
-  }, [messages])
+  }, [messages, isLoading])
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     if (!input.trim() || isLoading) return
-    setHasError(false)
     sendMessage({ text: input })
     setInput('')
-  }
-
-  const handleClear = () => {
-    setMessages([])
-    setHasError(false)
   }
 
   return (
@@ -103,21 +77,14 @@ export default function AssistantPage() {
       {/* Chat area */}
       <div style={{ flex:1, border:'1px solid rgba(232,224,212,0.08)', display:'flex', flexDirection:'column', minHeight:0 }}>
         {/* Chat header */}
-        <div style={{ padding:'12px 20px', borderBottom:'1px solid rgba(232,224,212,0.07)', display:'flex', alignItems:'center', justifyContent:'space-between', flexShrink:0 }}>
-          <div style={{ display:'flex', alignItems:'center', gap:'10px' }}>
-            <div style={{ width:28, height:28, border:'1px solid rgba(232,224,212,0.15)', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
-              <Bot size={13} style={{ color:'rgba(232,224,212,0.6)' }} />
-            </div>
-            <div>
-              <div style={{ fontFamily:'"DM Mono",monospace', fontSize:'11px', color:'rgba(232,224,212,0.7)', letterSpacing:'0.06em' }}>TradeSignal AI</div>
-              <div style={{ fontFamily:'"DM Mono",monospace', fontSize:'9px', color:'rgba(232,224,212,0.35)', letterSpacing:'0.06em' }}>Powered by Llama 3.3 70B</div>
-            </div>
+        <div style={{ padding:'14px 20px', borderBottom:'1px solid rgba(232,224,212,0.07)', display:'flex', alignItems:'center', gap:'10px', flexShrink:0 }}>
+          <div style={{ width:32, height:32, border:'1px solid rgba(232,224,212,0.15)', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+            <Bot size={14} style={{ color:'rgba(232,224,212,0.6)' }} />
           </div>
-          {messages.length > 0 && (
-            <button className="clear-btn" onClick={handleClear}>
-              <Trash2 size={9} /> Clear
-            </button>
-          )}
+          <div>
+            <div style={{ fontFamily:'"DM Mono",monospace', fontSize:'11px', color:'rgba(232,224,212,0.7)', letterSpacing:'0.06em' }}>TradeSignal AI</div>
+            <div style={{ fontFamily:'"DM Mono",monospace', fontSize:'9px', color:'rgba(232,224,212,0.35)', letterSpacing:'0.06em' }}>Powered by Llama 3.1</div>
+          </div>
         </div>
 
         {/* Messages */}
@@ -161,15 +128,9 @@ export default function AssistantPage() {
                       if (part.type === 'text') return <div key={index}>{renderMarkdown(part.text)}</div>
                       if (part.type === 'tool-invocation') {
                         const t = part as any
-                        const toolName = t.toolName ?? t.name ?? 'tool'
-                        const isDone = t.state === 'output-available'
-                        const label = isDone
-                          ? (TOOL_DONE_LABELS[toolName]?.(t.input) ?? `✓ ${toolName}`)
-                          : (TOOL_LABELS[toolName]?.(t.input) ?? `${toolName}...`)
                         return (
-                          <div key={index} className={`tool-pill ${isDone ? 'done' : ''}`}>
-                            {!isDone && <Spinner className="h-3 w-3" />}
-                            {label}
+                          <div key={index} style={{ margin:'8px 0', padding:'6px 10px', border:'1px solid rgba(232,224,212,0.1)', fontFamily:'"DM Mono",monospace', fontSize:'10px', color:'rgba(232,224,212,0.45)', letterSpacing:'0.04em' }}>
+                            {t.state === 'output-available' ? '✓' : '◌'} {t.toolName ?? t.name ?? 'tool'}
                           </div>
                         )
                       }
@@ -183,7 +144,6 @@ export default function AssistantPage() {
                   )}
                 </div>
               ))}
-
               {isLoading && (
                 <div style={{ display:'flex', gap:'12px' }}>
                   <div style={{ width:28, height:28, border:'1px solid rgba(232,224,212,0.12)', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
@@ -195,15 +155,6 @@ export default function AssistantPage() {
                   </div>
                 </div>
               )}
-
-              {hasError && (
-                <div className="error-msg">
-                  <AlertCircle size={14} />
-                  Something went wrong. Please try again.
-                  <button onClick={() => setHasError(false)} style={{ marginLeft:'auto', background:'none', border:'none', color:'#c87e7e', cursor:'pointer', fontSize:'14px' }}>×</button>
-                </div>
-              )}
-
               <div ref={messagesEndRef} />
             </div>
           )}
