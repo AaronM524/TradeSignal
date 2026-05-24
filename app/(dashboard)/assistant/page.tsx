@@ -4,7 +4,7 @@ import { useState, useRef, useEffect } from 'react'
 import { useChat } from '@ai-sdk/react'
 import { DefaultChatTransport } from 'ai'
 import { Spinner } from '@/components/ui/spinner'
-import { Bot, User, Send, TrendingUp, BarChart3, Calculator, Sparkles } from 'lucide-react'
+import { Bot, User, Send, TrendingUp, BarChart3, Calculator, Sparkles, Trash2 } from 'lucide-react'
 
 const SUGGESTED_PROMPTS = [
   { icon: TrendingUp, text: 'Analyze NVDA for me' },
@@ -33,6 +33,8 @@ const CSS = `
   .prompt-btn { display:flex;align-items:center;gap:8px;padding:12px 16px;background:rgba(232,224,212,0.03);border:1px solid rgba(232,224,212,0.1);color:rgba(232,224,212,0.6);font-family:"DM Sans",sans-serif;font-size:13px;cursor:pointer;transition:all 0.15s;text-align:left; }
   .prompt-btn:hover { border-color:rgba(232,224,212,0.25);color:#e8e0d4;background:rgba(232,224,212,0.05); }
   .prompt-grid { display:grid;grid-template-columns:1fr 1fr;gap:8px;width:100%;max-width:480px; }
+  .clear-btn { display:flex;align-items:center;gap:5px;background:none;border:1px solid rgba(232,224,212,0.12);color:rgba(232,224,212,0.35);padding:5px 10px;font-family:"DM Mono",monospace;font-size:9px;letter-spacing:0.06em;text-transform:uppercase;cursor:pointer;transition:all 0.15s; }
+  .clear-btn:hover { border-color:rgba(200,126,126,0.4);color:#c87e7e; }
 
   @media (max-width: 768px) {
     .ai-page { padding: 0 !important; height: 100dvh !important; }
@@ -46,7 +48,7 @@ export default function AssistantPage() {
   const [input, setInput] = useState('')
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
-  const { messages, sendMessage, status } = useChat({
+  const { messages, sendMessage, status, setMessages } = useChat({
     transport: new DefaultChatTransport({ api: '/api/chat' }),
   })
 
@@ -63,6 +65,8 @@ export default function AssistantPage() {
     setInput('')
   }
 
+  const handleClear = () => setMessages([])
+
   return (
     <div className="ai-page" style={{ padding:'32px 40px', fontFamily:'"DM Sans",sans-serif', color:'#e8e0d4', height:'100vh', display:'flex', flexDirection:'column', background:'#0a0a0a', boxSizing:'border-box' }}>
       <style dangerouslySetInnerHTML={{ __html: CSS }} />
@@ -77,14 +81,21 @@ export default function AssistantPage() {
       {/* Chat area */}
       <div style={{ flex:1, border:'1px solid rgba(232,224,212,0.08)', display:'flex', flexDirection:'column', minHeight:0 }}>
         {/* Chat header */}
-        <div style={{ padding:'14px 20px', borderBottom:'1px solid rgba(232,224,212,0.07)', display:'flex', alignItems:'center', gap:'10px', flexShrink:0 }}>
-          <div style={{ width:32, height:32, border:'1px solid rgba(232,224,212,0.15)', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
-            <Bot size={14} style={{ color:'rgba(232,224,212,0.6)' }} />
+        <div style={{ padding:'14px 20px', borderBottom:'1px solid rgba(232,224,212,0.07)', display:'flex', alignItems:'center', justifyContent:'space-between', flexShrink:0 }}>
+          <div style={{ display:'flex', alignItems:'center', gap:'10px' }}>
+            <div style={{ width:32, height:32, border:'1px solid rgba(232,224,212,0.15)', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+              <Bot size={14} style={{ color:'rgba(232,224,212,0.6)' }} />
+            </div>
+            <div>
+              <div style={{ fontFamily:'"DM Mono",monospace', fontSize:'11px', color:'rgba(232,224,212,0.7)', letterSpacing:'0.06em' }}>TradeSignal AI</div>
+              <div style={{ fontFamily:'"DM Mono",monospace', fontSize:'9px', color:'rgba(232,224,212,0.35)', letterSpacing:'0.06em' }}>Powered by Llama 3.1</div>
+            </div>
           </div>
-          <div>
-            <div style={{ fontFamily:'"DM Mono",monospace', fontSize:'11px', color:'rgba(232,224,212,0.7)', letterSpacing:'0.06em' }}>TradeSignal AI</div>
-            <div style={{ fontFamily:'"DM Mono",monospace', fontSize:'9px', color:'rgba(232,224,212,0.35)', letterSpacing:'0.06em' }}>Powered by Llama 3.1</div>
-          </div>
+          {messages.length > 0 && (
+            <button className="clear-btn" onClick={handleClear}>
+              <Trash2 size={9} /> Clear
+            </button>
+          )}
         </div>
 
         {/* Messages */}
