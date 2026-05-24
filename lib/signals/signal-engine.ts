@@ -98,19 +98,13 @@ export function detectSignal(input: SignalInput): TradeSignal | null {
     triggers.push({ type: 'DEATH_CROSS_CONTEXT', strength: 'moderate', description: '50 SMA below 200 SMA — bearish long-term trend', value: indicators.sma50 })
   }
 
-  // ── VWAP RECLAIM / BREAKDOWN ──────────────────────────────────
-  if (indicators.vwapReclaim) {
-    score += 18; isBullish = true
-    triggers.push({ type: 'VWAP_RECLAIM', strength: 'strong', description: `Price reclaimed VWAP at $${indicators.vwap?.toFixed(2)} — buyers taking control`, value: indicators.vwap })
-  } else if (indicators.vwapBreakdown) {
-    score += 18; isBullish = false
-    triggers.push({ type: 'VWAP_BREAKDOWN', strength: 'strong', description: `Price broke below VWAP at $${indicators.vwap?.toFixed(2)} — sellers in control`, value: indicators.vwap })
-  } else if (indicators.priceVsVwap === 'above') {
-    score += 8
-    triggers.push({ type: 'ABOVE_VWAP', strength: 'moderate', description: `Trading above VWAP ($${indicators.vwap?.toFixed(2)}) — bullish intraday bias`, value: indicators.vwap })
+  // ── VWAP CONTEXT (daily data only — not intraday reclaim) ────
+  if (indicators.priceVsVwap === 'above') {
+    score += 5
+    triggers.push({ type: 'ABOVE_VWAP', strength: 'moderate', description: `Trading above VWAP ($${indicators.vwap?.toFixed(2)}) — bullish daily bias`, value: indicators.vwap })
   } else if (indicators.priceVsVwap === 'below') {
-    score += 8; isBullish = false
-    triggers.push({ type: 'BELOW_VWAP', strength: 'moderate', description: `Trading below VWAP ($${indicators.vwap?.toFixed(2)}) — bearish intraday bias`, value: indicators.vwap })
+    score += 5; isBullish = false
+    triggers.push({ type: 'BELOW_VWAP', strength: 'moderate', description: `Trading below VWAP ($${indicators.vwap?.toFixed(2)}) — bearish daily bias`, value: indicators.vwap })
   }
 
   // ── BOLLINGER BANDS ───────────────────────────────────────────
