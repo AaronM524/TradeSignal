@@ -30,6 +30,10 @@ const CSS = `
   .tip-row { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-bottom: 1px solid rgba(232,224,212,0.05); font-family: "DM Sans", sans-serif; font-size: 13px; color: rgba(232,224,212,0.55); font-weight: 300; }
   .tip-badge { font-family: "DM Mono", monospace; font-size: 10px; padding: 2px 8px; border: 1px solid rgba(232,224,212,0.2); color: rgba(232,224,212,0.7); white-space: nowrap; }
 
+  .db-card-wrap { display:flex;flex-direction:column; }
+  .db-dismiss { display:flex;align-items:center;justify-content:center;background:none;border:1px solid rgba(232,224,212,0.08);color:rgba(232,224,212,0.25);padding:7px;font-family:"DM Mono",monospace;font-size:9px;letter-spacing:0.06em;text-transform:uppercase;cursor:pointer;transition:all 0.15s;width:100%;margin-top:4px; }
+  .db-dismiss:hover { border-color:rgba(200,126,126,0.3);color:#c87e7e;background:rgba(200,126,126,0.04); }
+
   .db-header { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 32px; gap: 16px; }
   .db-stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1px; background: rgba(232,224,212,0.07); margin-bottom: 32px; }
   .db-market { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1px; background: rgba(232,224,212,0.07); }
@@ -49,6 +53,7 @@ const CSS = `
 
 export default function DashboardPage() {
   const [isScanning, setIsScanning] = useState(false)
+  const [dismissed, setDismissed] = useState<Set<string>>(new Set())
 
   const { data: indicesData, isLoading: indicesLoading } = useSWR(
     '/api/market/quotes?tickers=' + MARKET_INDICES.join(','),
@@ -68,11 +73,14 @@ export default function DashboardPage() {
 
   const handleManualScan = async () => {
     setIsScanning(true)
+    setDismissed(new Set())
     await refreshSignals()
     setIsScanning(false)
   }
 
-  const signals = signalsData?.signals || []
+  const dismissSignal = (id: string) => setDismissed(prev => new Set([...prev, id]))
+
+  const signals = (signalsData?.signals || []).filter(s => !dismissed.has(s.id))
   const highConfidenceSignals = signals.filter(s => s.confidence === 'high')
   const bullishSignals = signals.filter(s => s.signalType === 'bullish_entry')
   const bearishSignals = signals.filter(s => s.signalType === 'bearish_entry')
@@ -179,7 +187,10 @@ export default function DashboardPage() {
         ) : (
           <div className="db-signals">
             {signals.slice(0, 6).map(signal => (
-              <SignalCard key={signal.id} signal={signal} onViewDetails={(s) => console.log('View signal:', s)} />
+              <div key={signal.id} className="db-card-wrap">
+                <SignalCard signal={signal} onViewDetails={(s) => console.log('View signal:', s)} />
+                <button className="db-dismiss" onClick={() => dismissSignal(signal.id)}>Dismiss</button>
+              </div>
             ))}
           </div>
         )}
