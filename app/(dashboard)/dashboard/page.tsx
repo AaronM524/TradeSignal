@@ -53,7 +53,13 @@ const CSS = `
 
 export default function DashboardPage() {
   const [isScanning, setIsScanning] = useState(false)
-  const [dismissed, setDismissed] = useState<Set<string>>(new Set())
+  const [dismissed, setDismissed] = useState<Set<string>>(() => {
+    if (typeof window === 'undefined') return new Set()
+    try {
+      const stored = localStorage.getItem('db_dismissed_signals')
+      return stored ? new Set(JSON.parse(stored)) : new Set()
+    } catch { return new Set() }
+  })
 
   const { data: indicesData, isLoading: indicesLoading } = useSWR(
     '/api/market/quotes?tickers=' + MARKET_INDICES.join(','),
@@ -74,11 +80,18 @@ export default function DashboardPage() {
   const handleManualScan = async () => {
     setIsScanning(true)
     setDismissed(new Set())
+    localStorage.removeItem('db_dismissed_signals')
     await refreshSignals()
     setIsScanning(false)
   }
 
-  const dismissSignal = (id: string) => setDismissed(prev => new Set([...prev, id]))
+  const dismissSignal = (id: string) => {
+    setDismissed(prev => {
+      const next = new Set([...prev, id])
+      localStorage.setItem('db_dismissed_signals', JSON.stringify([...next]))
+      return next
+    })
+  }
 
   const signals = (signalsData?.signals || []).filter(s => !dismissed.has(s.id))
   const highConfidenceSignals = signals.filter(s => s.confidence === 'high')
