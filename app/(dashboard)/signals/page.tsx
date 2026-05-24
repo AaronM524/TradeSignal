@@ -22,12 +22,14 @@ const CSS = `
   .stat-card { background:rgba(232,224,212,0.02);border:1px solid rgba(232,224,212,0.08);padding:20px 24px;cursor:pointer;transition:all 0.2s; }
   .stat-card:hover { border-color:rgba(232,224,212,0.15); }
   .stat-card.active { border-color:rgba(232,224,212,0.35);background:rgba(232,224,212,0.04); }
-
   .sig-header { display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:32px;gap:16px; }
   .sig-controls { display:flex;gap:8px;align-items:center;flex-wrap:wrap; }
   .sig-stats { display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:rgba(232,224,212,0.07);margin-bottom:32px; }
   .sig-grid { display:grid;grid-template-columns:repeat(3,1fr);gap:16px; }
   .sig-method { display:grid;grid-template-columns:repeat(2,1fr);gap:16px; }
+  .sig-card-wrap { position:relative; display:flex; flex-direction:column; }
+  .sig-dismiss { display:flex;align-items:center;justify-content:center;gap:5px;background:none;border:1px solid rgba(232,224,212,0.08);color:rgba(232,224,212,0.25);padding:7px;font-family:"DM Mono",monospace;font-size:9px;letter-spacing:0.06em;text-transform:uppercase;cursor:pointer;transition:all 0.15s;width:100%;margin-top:4px; }
+  .sig-dismiss:hover { border-color:rgba(200,126,126,0.3);color:#c87e7e;background:rgba(200,126,126,0.04); }
 
   @media (max-width: 768px) {
     .sig-page { padding: 16px !important; }
@@ -44,6 +46,7 @@ export default function SignalsPage() {
   const [minScore, setMinScore] = useState('30')
   const [signalFilter, setSignalFilter] = useState<'all'|'bullish'|'bearish'>('all')
   const [tab, setTab] = useState<'high'|'medium'|'all'>('high')
+  const [dismissed, setDismissed] = useState<Set<string>>(new Set())
 
   const { data, isLoading, mutate: refreshSignals } = useSWR<{ signals: TradeSignal[]; scannedCount: number }>(
     `/api/signals/scan?minScore=${minScore}`,
@@ -53,11 +56,16 @@ export default function SignalsPage() {
 
   const handleScan = async () => {
     setIsScanning(true)
+    setDismissed(new Set()) // clear dismissed on new scan
     await refreshSignals()
     setIsScanning(false)
   }
 
-  const signals = data?.signals || []
+  const dismissSignal = (id: string) => {
+    setDismissed(prev => new Set([...prev, id]))
+  }
+
+  const signals = (data?.signals || []).filter(s => !dismissed.has(s.id))
   const filtered = signals.filter(s => {
     if (signalFilter === 'bullish') return s.signalType === 'bullish_entry'
     if (signalFilter === 'bearish') return s.signalType === 'bearish_entry'
@@ -137,7 +145,14 @@ export default function SignalsPage() {
         </div>
       ) : (
         <div className="sig-grid">
-          {tabSignals.map(signal => <SignalCard key={signal.id} signal={signal} />)}
+          {tabSignals.map(signal => (
+            <div key={signal.id} className="sig-card-wrap">
+              <SignalCard signal={signal} />
+              <button className="sig-dismiss" onClick={() => dismissSignal(signal.id)}>
+                Dismiss
+              </button>
+            </div>
+          ))}
         </div>
       )}
 
