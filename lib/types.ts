@@ -15,7 +15,6 @@ export interface Quote {
   updatedAt: Date
 }
 
-// Extended quote with additional fields for stock detail view
 export interface StockQuote extends Quote {
   name?: string
   dayHigh?: number
@@ -33,12 +32,27 @@ export interface TechnicalIndicators {
   macdCrossover: 'bullish' | 'bearish' | 'none'
   ema9: number
   ema21: number
+  ema50?: number
+  ema200?: number
   sma50: number
   sma200: number
+  goldenCross?: boolean
+  deathCross?: boolean
   vwap: number
   priceVsVwap: 'above' | 'below' | 'at'
   previousPriceVsVwap?: 'above' | 'below' | 'at'
+  vwapReclaim?: boolean
+  vwapBreakdown?: boolean
+  bollingerUpper?: number
+  bollingerMiddle?: number
+  bollingerLower?: number
+  bollingerBandwidth?: number
+  bollingerPercentB?: number
+  bbPosition?: 'above_upper' | 'below_lower' | 'inside'
+  bbBreakout?: boolean
+  bbBounce?: boolean
   relativeVolume: number
+  highVolume?: boolean
   atr: number
   support?: number
   resistance?: number
@@ -63,7 +77,6 @@ export interface OptionsFlow {
   timestamp: Date
 }
 
-// Signal Types
 export type SignalType = 'bullish_entry' | 'bearish_entry' | 'exit_warning'
 export type Confidence = 'low' | 'medium' | 'high'
 
@@ -83,10 +96,10 @@ export interface TradeSignal {
   confidence: Confidence
   triggers: SignalTrigger[]
   entry: number
-  entryPrice?: number // alias for entry
+  entryPrice?: number
   stopLoss: number
   target: number
-  targetPrice?: number // alias for target
+  targetPrice?: number
   riskReward: number
   wasViewed: boolean
   wasActedOn?: boolean
@@ -94,7 +107,6 @@ export interface TradeSignal {
   createdAt: Date
 }
 
-// Watchlist Types
 export interface WatchlistItem {
   id: string
   userId: string
@@ -105,7 +117,6 @@ export interface WatchlistItem {
   indicators?: TechnicalIndicators
 }
 
-// Signal Settings Types
 export interface SignalSettings {
   id: string
   userId: string
@@ -116,7 +127,6 @@ export interface SignalSettings {
   scanWatchlistOnly: boolean
 }
 
-// Chart Data Types
 export interface CandleData {
   time: string
   open: number
@@ -132,7 +142,6 @@ export interface ChartIndicator {
   color: string
 }
 
-// Database Types (matching Supabase schema)
 export interface DbWatchlist {
   id: string
   user_id: string
