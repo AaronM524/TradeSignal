@@ -14,6 +14,10 @@ const MARKET_INDICES = ['SPY', 'QQQ', 'DIA', 'IWM']
 const CSS = `
   @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;0,900;1,400&family=DM+Mono:wght@300;400;500&family=DM+Sans:wght@300;400;500;600&display=swap');
 
+  .disclaimer { display:flex;align-items:flex-start;justify-content:space-between;gap:16px;padding:14px 20px;border:1px solid rgba(232,224,212,0.12);background:rgba(232,224,212,0.03);margin-bottom:28px; }
+  .disclaimer-close { background:none;border:none;color:rgba(232,224,212,0.35);cursor:pointer;padding:2px;font-size:16px;line-height:1;flex-shrink:0;transition:color 0.15s; }
+  .disclaimer-close:hover { color:#e8e0d4; }
+
   .stat-card { background: rgba(232,224,212,0.02); border: 1px solid rgba(232,224,212,0.08); padding: 20px 24px; transition: border-color 0.2s; }
   .stat-card:hover { border-color: rgba(232,224,212,0.15); }
   .stat-label { font-family: "DM Mono", monospace; font-size: 9px; letter-spacing: 0.1em; text-transform: uppercase; color: rgba(232,224,212,0.4); margin-bottom: 10px; display: flex; align-items: center; justify-content: space-between; }
@@ -53,6 +57,10 @@ const CSS = `
 
 export default function DashboardPage() {
   const [isScanning, setIsScanning] = useState(false)
+  const [showDisclaimer, setShowDisclaimer] = useState(() => {
+    if (typeof window === 'undefined') return false
+    return localStorage.getItem('disclaimer_dismissed') !== 'true'
+  })
   const [dismissed, setDismissed] = useState<Set<string>>(new Set())
 
   useEffect(() => {
@@ -102,6 +110,22 @@ export default function DashboardPage() {
   return (
     <div className="db-page" style={{ padding: '32px 40px', fontFamily: '"DM Sans", sans-serif', color: '#e8e0d4', minHeight: '100vh', background: '#0a0a0a' }}>
       <style dangerouslySetInnerHTML={{ __html: CSS }} />
+
+      {/* Disclaimer */}
+      {showDisclaimer && (
+        <div className="disclaimer">
+          <div style={{ display:'flex', gap:'10px', alignItems:'flex-start' }}>
+            <span style={{ fontFamily:'"DM Mono",monospace', fontSize:'11px', color:'rgba(232,224,212,0.5)', flexShrink:0 }}>⚠</span>
+            <p style={{ fontFamily:'"DM Sans",sans-serif', fontSize:'12px', color:'rgba(232,224,212,0.55)', fontWeight:300, lineHeight:1.6 }}>
+              <strong style={{ fontWeight:600, color:'rgba(232,224,212,0.75)' }}>Disclaimer:</strong> TradeSignal is for educational purposes only. Nothing on this platform constitutes financial advice. Trading involves significant risk of loss. Always do your own research.
+            </p>
+          </div>
+          <button className="disclaimer-close" onClick={() => {
+            setShowDisclaimer(false)
+            localStorage.setItem('disclaimer_dismissed', 'true')
+          }}>×</button>
+        </div>
+      )}
 
       {/* Header */}
       <div className="db-header">
