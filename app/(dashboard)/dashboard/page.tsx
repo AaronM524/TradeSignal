@@ -1,5 +1,5 @@
 'use client'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import useSWR from 'swr'
 import { SignalCard } from '@/components/signals/signal-card'
 import { QuoteCard } from '@/components/market/quote-card'
@@ -53,13 +53,14 @@ const CSS = `
 
 export default function DashboardPage() {
   const [isScanning, setIsScanning] = useState(false)
-  const [dismissed, setDismissed] = useState<Set<string>>(() => {
-    if (typeof window === 'undefined') return new Set()
+  const [dismissed, setDismissed] = useState<Set<string>>(new Set())
+
+  useEffect(() => {
     try {
       const stored = localStorage.getItem('db_dismissed_signals')
-      return stored ? new Set(JSON.parse(stored)) : new Set()
-    } catch { return new Set() }
-  })
+      if (stored) setDismissed(new Set(JSON.parse(stored)))
+    } catch {}
+  }, [])
 
   const { data: indicesData, isLoading: indicesLoading } = useSWR(
     '/api/market/quotes?tickers=' + MARKET_INDICES.join(','),
@@ -85,15 +86,15 @@ export default function DashboardPage() {
     setIsScanning(false)
   }
 
-  const dismissSignal = (id: string) => {
+  const dismissSignal = (id: string, ticker: string) => {
     setDismissed(prev => {
-      const next = new Set([...prev, id])
+      const next = new Set([...prev, ticker])
       localStorage.setItem('db_dismissed_signals', JSON.stringify([...next]))
       return next
     })
   }
 
-  const signals = (signalsData?.signals || []).filter(s => !dismissed.has(s.id))
+  const signals = (signalsData?.signals || []).filter(s => !dismissed.has(s.ticker))
   const highConfidenceSignals = signals.filter(s => s.confidence === 'high')
   const bullishSignals = signals.filter(s => s.signalType === 'bullish_entry')
   const bearishSignals = signals.filter(s => s.signalType === 'bearish_entry')
@@ -202,7 +203,7 @@ export default function DashboardPage() {
             {signals.slice(0, 6).map(signal => (
               <div key={signal.id} className="db-card-wrap">
                 <SignalCard signal={signal} onViewDetails={(s) => console.log('View signal:', s)} />
-                <button className="db-dismiss" onClick={() => dismissSignal(signal.id)}>Dismiss</button>
+                <button className="db-dismiss" onClick={() => dismissSignal(signal.id, signal.ticker)}>Dismiss</button>
               </div>
             ))}
           </div>

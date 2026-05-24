@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import useSWR from 'swr'
 import { Spinner } from '@/components/ui/spinner'
 import { SignalCard } from '@/components/signals/signal-card'
@@ -46,13 +46,14 @@ export default function SignalsPage() {
   const [minScore, setMinScore] = useState('30')
   const [signalFilter, setSignalFilter] = useState<'all'|'bullish'|'bearish'>('all')
   const [tab, setTab] = useState<'high'|'medium'|'all'>('high')
-  const [dismissed, setDismissed] = useState<Set<string>>(() => {
-    if (typeof window === 'undefined') return new Set()
+  const [dismissed, setDismissed] = useState<Set<string>>(new Set())
+
+  useEffect(() => {
     try {
       const stored = localStorage.getItem('sig_dismissed_signals')
-      return stored ? new Set(JSON.parse(stored)) : new Set()
-    } catch { return new Set() }
-  })
+      if (stored) setDismissed(new Set(JSON.parse(stored)))
+    } catch {}
+  }, [])
 
   const { data, isLoading, mutate: refreshSignals } = useSWR<{ signals: TradeSignal[]; scannedCount: number }>(
     `/api/signals/scan?minScore=${minScore}`,
@@ -68,15 +69,15 @@ export default function SignalsPage() {
     setIsScanning(false)
   }
 
-  const dismissSignal = (id: string) => {
+  const dismissSignal = (id: string, ticker: string) => {
     setDismissed(prev => {
-      const next = new Set([...prev, id])
+      const next = new Set([...prev, ticker])
       localStorage.setItem('sig_dismissed_signals', JSON.stringify([...next]))
       return next
     })
   }
 
-  const signals = (data?.signals || []).filter(s => !dismissed.has(s.id))
+  const signals = (data?.signals || []).filter(s => !dismissed.has(s.ticker))
   const filtered = signals.filter(s => {
     if (signalFilter === 'bullish') return s.signalType === 'bullish_entry'
     if (signalFilter === 'bearish') return s.signalType === 'bearish_entry'
@@ -159,7 +160,7 @@ export default function SignalsPage() {
           {tabSignals.map(signal => (
             <div key={signal.id} className="sig-card-wrap">
               <SignalCard signal={signal} />
-              <button className="sig-dismiss" onClick={() => dismissSignal(signal.id)}>
+              <button className="sig-dismiss" onClick={() => dismissSignal(signal.id, signal.ticker)}>
                 Dismiss
               </button>
             </div>
