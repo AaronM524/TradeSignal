@@ -1,12 +1,19 @@
 'use client'
 
 import Link from 'next/link'
-import { ArrowUpRight } from 'lucide-react'
+import { ArrowUpRight, PlayCircle } from 'lucide-react'
+import { useEffect, useState } from 'react'
 
 const signals = [
-  { ticker: 'NVDA', dir: 'SHORT', score: 58, rsi: 66.7, macd: 'Bear Cross', entry: '219.51', stop: '236.19', target: '186.14' },
-  { ticker: 'MSFT', dir: 'LONG', score: 45, rsi: 54.0, macd: 'Bullish', entry: '419.09', stop: '397.07', target: '463.12' },
-  { ticker: 'AMD', dir: 'SHORT', score: 43, rsi: 70.2, macd: 'Bear', entry: '448.56', stop: '502.97', target: '339.73' },
+  { ticker: 'NVDA', dir: 'SHORT', score: 58, rsi: 66.7, macd: 'Bearish · MACD Cross', entry: '219.51', stop: '236.19', target: '186.14' },
+  { ticker: 'MSFT', dir: 'LONG', score: 45, rsi: 54.0, macd: 'Bullish · Trend', entry: '419.09', stop: '397.07', target: '463.12' },
+  { ticker: 'AMD', dir: 'SHORT', score: 43, rsi: 70.2, macd: 'Bearish · Momentum', entry: '448.56', stop: '502.97', target: '339.73' },
+]
+
+const howItWorks = [
+  { step: '01', title: 'We scan the market', desc: '50+ tickers pulled daily from live Yahoo Finance data — RSI, MACD, EMA, and ATR calculated fresh, no synthetic values.' },
+  { step: '02', title: 'AI scores every setup', desc: 'Groq reads real news headlines for each ticker and adjusts a 0–100 confidence score based on technicals + sentiment.' },
+  { step: '03', title: 'You get the alert', desc: 'High-confidence signals push straight to your browser with entry, stop, and target already calculated.' },
 ]
 
 const CSS = `
@@ -28,25 +35,32 @@ const CSS = `
   .feat-title { font-size: 17px; font-weight: 700; margin-bottom: 10px; line-height: 1.2; color: #e8e0d4; }
   .feat-desc { font-family: "Inter", sans-serif; font-size: 13px; line-height: 1.65; color: rgba(232,224,212,0.6); font-weight: 300; }
   .big-number { font-family: "Playfair Display", serif; font-size: 48px; font-weight: 900; line-height: 1; letter-spacing: -0.04em; color: #e8e0d4; }
+  .step-card { padding: 32px 0; border-bottom: 1px solid rgba(232,224,212,0.1); }
+  .step-card:last-child { border-bottom: none; }
+  .demo-placeholder { border: 1px dashed rgba(232,224,212,0.25); background: rgba(232,224,212,0.02); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; height: 100%; min-height: 340px; text-align: center; padding: 24px; }
+  .footer-link { font-family: "Inter", sans-serif; font-size: 11px; letter-spacing: 0.04em; color: rgba(232,224,212,0.5); text-decoration: none; transition: color 0.15s; }
+  .footer-link:hover { color: #e8e0d4; }
 
   /* Responsive grid classes */
   .hero-grid { display: grid; grid-template-columns: 1fr 420px; gap: 80px; align-items: start; }
   .feature-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px; background: rgba(232,224,212,0.15); }
   .stat-grid { display: grid; grid-template-columns: repeat(3, 1fr); }
   .cta-grid { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 48px; }
+  .how-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 64px; align-items: center; }
 
   @media (max-width: 900px) {
     .hero-grid { grid-template-columns: 1fr !important; gap: 40px !important; }
     .feature-grid { grid-template-columns: repeat(2, 1fr) !important; }
     .stat-grid { grid-template-columns: repeat(2, 1fr) !important; }
     .cta-grid { grid-template-columns: 1fr !important; gap: 24px !important; }
+    .how-grid { grid-template-columns: 1fr !important; gap: 32px !important; }
   }
 
   @media (max-width: 600px) {
     .lp-section { padding: 48px 20px !important; }
     .lp-ticker { padding: 8px 20px !important; }
     .lp-nav { padding: 14px 20px !important; }
-    .lp-footer { padding: 20px !important; flex-direction: column !important; gap: 12px !important; text-align: center !important; }
+    .lp-footer { padding: 24px 20px !important; }
     .feature-grid { grid-template-columns: 1fr !important; }
     .stat-grid { grid-template-columns: repeat(2, 1fr) !important; }
     .lp-h1 { font-size: 40px !important; }
@@ -60,7 +74,30 @@ const CSS = `
   }
 `
 
+function getMarketStatus() {
+  // Approximate NYSE hours in ET (9:30am–4:00pm, Mon–Fri). Rough client-side check.
+  const now = new Date()
+  const etString = now.toLocaleString('en-US', { timeZone: 'America/New_York' })
+  const et = new Date(etString)
+  const day = et.getDay()
+  const minutes = et.getHours() * 60 + et.getMinutes()
+
+  if (day === 0 || day === 6) return 'NYSE CLOSED'
+  if (minutes < 9 * 60 + 30) return 'PRE-MARKET'
+  if (minutes >= 9 * 60 + 30 && minutes < 16 * 60) return 'NYSE OPEN'
+  if (minutes >= 16 * 60 && minutes < 20 * 60) return 'AFTER HOURS'
+  return 'NYSE CLOSED'
+}
+
 export default function LandingPage() {
+  const [marketStatus, setMarketStatus] = useState('NYSE OPEN')
+
+  useEffect(() => {
+    setMarketStatus(getMarketStatus())
+    const interval = setInterval(() => setMarketStatus(getMarketStatus()), 60_000)
+    return () => clearInterval(interval)
+  }, [])
+
   return (
     <div style={{ minHeight: '100vh', background: '#0a0a0a', color: '#e8e0d4', fontFamily: '"Playfair Display", Georgia, serif', overflowX: 'hidden' }}>
       <style dangerouslySetInnerHTML={{ __html: CSS }} />
@@ -71,7 +108,7 @@ export default function LandingPage() {
           SPY <span style={{ color: '#7ec8a0' }}>+0.82%</span>
           {' · '}QQQ <span style={{ color: '#7ec8a0' }}>+1.04%</span>
           {' · '}VIX <span style={{ color: '#c87e7e' }}>18.3</span>
-          {' · '}NYSE OPEN
+          {' · '}{marketStatus}
         </span>
         <span style={{ fontFamily: '"DM Mono", monospace', fontSize: '11px', color: 'rgba(232,224,212,0.55)', letterSpacing: '0.04em' }}>
           {new Date().toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}
@@ -88,7 +125,7 @@ export default function LandingPage() {
         </Link>
         <div className="lp-nav-btns" style={{ display: 'flex', gap: '10px' }}>
           <Link href="/auth/login" style={{ textDecoration: 'none' }}><button className="btn-outline">Log In</button></Link>
-          <Link href="/auth/sign-up" style={{ textDecoration: 'none' }}><button className="btn-dark">Get Started →</button></Link>
+          <Link href="/auth/sign-up" style={{ textDecoration: 'none' }}><button className="btn-dark">Start Free →</button></Link>
         </div>
       </nav>
 
@@ -148,8 +185,11 @@ export default function LandingPage() {
                 <div style={{ fontFamily: '"Playfair Display", serif', fontSize: '22px', fontWeight: 700, textAlign: 'right', color: s.score >= 55 ? '#e8e0d4' : 'rgba(232,224,212,0.3)' }}>{s.score}</div>
               </div>
             ))}
-            <div style={{ paddingTop: '20px', display: 'flex', justifyContent: 'flex-end' }}>
-              <Link href="/auth/sign-up" style={{ textDecoration: 'none', fontFamily: '"DM Mono", monospace', fontSize: '12px', color: 'rgba(232,224,212,0.65)', display: 'flex', alignItems: 'center', gap: '4px', letterSpacing: '0.04em' }}>
+            <div style={{ paddingTop: '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '12px', flexWrap: 'wrap' }}>
+              <span className="sans" style={{ fontSize: '10px', lineHeight: 1.5, color: 'rgba(232,224,212,0.4)', maxWidth: '220px' }}>
+                Score = 0–100 confluence of RSI, MACD &amp; news sentiment. Informational only — not investment advice.
+              </span>
+              <Link href="/auth/sign-up" style={{ textDecoration: 'none', fontFamily: '"DM Mono", monospace', fontSize: '12px', color: 'rgba(232,224,212,0.65)', display: 'flex', alignItems: 'center', gap: '4px', letterSpacing: '0.04em', whiteSpace: 'nowrap' }}>
                 UNLOCK FULL ACCESS <ArrowUpRight size={12} />
               </Link>
             </div>
@@ -171,6 +211,39 @@ export default function LandingPage() {
         ))}
       </section>
 
+      {/* How it works + demo */}
+      <section className="lp-section" style={{ padding: '80px 48px', borderBottom: '1px solid rgba(232,224,212,0.07)' }}>
+        <div style={{ marginBottom: '48px' }}>
+          <div className="divider" />
+          <h2 className="lp-h2" style={{ fontSize: '40px', fontWeight: 900, letterSpacing: '-0.02em', lineHeight: 1.1, color: '#e8e0d4' }}>
+            How it works.
+          </h2>
+        </div>
+        <div className="how-grid">
+          <div>
+            {howItWorks.map((s, i) => (
+              <div key={i} className="step-card">
+                <div style={{ display: 'flex', gap: '20px', alignItems: 'flex-start' }}>
+                  <span style={{ fontFamily: '"Playfair Display", serif', fontSize: '28px', fontWeight: 900, color: 'rgba(232,224,212,0.3)', lineHeight: 1 }}>{s.step}</span>
+                  <div>
+                    <div style={{ fontSize: '18px', fontWeight: 700, marginBottom: '8px', color: '#e8e0d4' }}>{s.title}</div>
+                    <p className="feat-desc" style={{ maxWidth: '380px' }}>{s.desc}</p>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Demo placeholder — swap for an autoplay loop of the scanner / AI assistant */}
+          <div className="demo-placeholder">
+            <PlayCircle size={36} color="rgba(232,224,212,0.4)" />
+            <div className="sans" style={{ fontSize: '13px', color: 'rgba(232,224,212,0.5)', fontWeight: 300, maxWidth: '260px' }}>
+              Product demo goes here — a short looping clip of the scanner running or the AI assistant answering a live question works best.
+            </div>
+          </div>
+        </div>
+      </section>
+
       {/* Features */}
       <section className="lp-section" style={{ padding: '80px 48px', borderBottom: '1px solid rgba(232,224,212,0.07)' }}>
         <div style={{ marginBottom: '48px' }}>
@@ -183,10 +256,10 @@ export default function LandingPage() {
         <div className="feature-grid">
           {[
             { title: 'Signal Engine', desc: 'RSI, MACD, EMA, ATR — all calculated from real Yahoo Finance daily data. No estimates, no synthetic values.' },
-            { title: 'AI News Layer', desc: 'Groq AI reads every headline for your tickers and adjusts signal confidence based on real news context.' },
+            { title: 'AI News Layer', desc: 'AI reads every headline for your tickers and adjusts signal confidence based on real news context.' },
             { title: 'Risk Framework', desc: 'Entry, 2× ATR stop loss, and a 1:2 risk/reward target on every signal. Know your max loss before you act.' },
             { title: 'Custom Scanner', desc: 'Filter 50+ tickers by RSI range, MACD crossover, and EMA alignment. Your screener, your criteria.' },
-            { title: 'AI Assistant', desc: 'Ask about any setup in plain English. Powered by Llama 3.1. Understands context, not just keywords.' },
+            { title: 'AI Assistant', desc: 'Ask about any setup in plain English. Understands context, not just keywords.' },
             { title: 'Smart Alerts', desc: 'Browser push notifications when high-confidence signals fire. Manual or auto-scan mode.' },
           ].map((f, i) => (
             <div key={i} className="feature-card">
@@ -209,15 +282,30 @@ export default function LandingPage() {
         </div>
         <Link href="/auth/sign-up" style={{ textDecoration: 'none' }}>
           <button className="btn-dark" style={{ fontSize: '14px', padding: '16px 40px' }}>
-            Create Free Account →
+            Start Free →
           </button>
         </Link>
       </section>
 
       {/* Footer */}
-      <footer className="lp-footer" style={{ borderTop: '1px solid rgba(232,224,212,0.08)', padding: '24px 48px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <span style={{ fontSize: '16px', fontWeight: 900, letterSpacing: '-0.01em', color: 'rgba(232,224,212,0.4)' }}>TradeSignal</span>
-        <span className="sans" style={{ fontSize: '12px', color: 'rgba(232,224,212,0.55)' }}> For educational purposes only. Not financial advice. Trading involves risk.</span>
+      <footer className="lp-footer" style={{ borderTop: '1px solid rgba(232,224,212,0.08)', padding: '40px 48px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '24px', marginBottom: '28px' }}>
+          <div>
+            <span style={{ fontSize: '18px', fontWeight: 900, letterSpacing: '-0.01em', color: 'rgba(232,224,212,0.7)' }}>TradeSignal</span>
+            <div className="sans" style={{ fontSize: '11px', color: 'rgba(232,224,212,0.4)', marginTop: '4px' }}>
+              © {new Date().getFullYear()} TradeSignal. All rights reserved.
+            </div>
+          </div>
+          <div style={{ display: 'flex', gap: '24px', flexWrap: 'wrap' }}>
+            <Link href="/privacy" className="footer-link">Privacy Policy</Link>
+            <Link href="/terms" className="footer-link">Terms of Service</Link>
+            <Link href="/disclosures" className="footer-link">Risk Disclosures</Link>
+            <Link href="/contact" className="footer-link">Contact</Link>
+          </div>
+        </div>
+        <p className="sans" style={{ fontSize: '11px', lineHeight: 1.7, color: 'rgba(232,224,212,0.4)', maxWidth: '780px', fontWeight: 300, borderTop: '1px solid rgba(232,224,212,0.06)', paddingTop: '20px' }}>
+          TradeSignal provides market data and algorithmically generated technical analysis for informational and educational purposes only. Nothing on this site constitutes financial, investment, legal, or tax advice, or a recommendation to buy or sell any security. Trading involves substantial risk of loss and is not suitable for every investor. Past performance and backtested or historical signals are not indicative of future results. TradeSignal is not a registered broker-dealer, investment advisor, or financial planner. Always conduct your own research and consult a licensed professional before making investment decisions.
+        </p>
       </footer>
     </div>
   )
