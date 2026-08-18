@@ -1,8 +1,256 @@
 'use client'
 
 import Link from 'next/link'
-import { ArrowUpRight, PlayCircle } from 'lucide-react'
+import { ArrowUpRight, Search, Bell, Activity } from 'lucide-react'
 import { useEffect, useState } from 'react'
+
+const DEMO_STEP_DURATION = 4200
+
+function useCycle(steps: number, duration: number) {
+  const [active, setActive] = useState(0)
+  useEffect(() => {
+    const id = setInterval(() => setActive((a) => (a + 1) % steps), duration)
+    return () => clearInterval(id)
+  }, [steps, duration])
+  return [active, setActive] as const
+}
+
+function ScanCounter({ active }: { active: boolean }) {
+  const [count, setCount] = useState(0)
+  useEffect(() => {
+    if (!active) {
+      setCount(0)
+      return
+    }
+    let n = 0
+    const id = setInterval(() => {
+      n += Math.ceil(Math.random() * 5)
+      if (n >= 50) {
+        n = 50
+        clearInterval(id)
+      }
+      setCount(n)
+    }, 110)
+    return () => clearInterval(id)
+  }, [active])
+  return <>{count}</>
+}
+
+function ScoreCounter({ active, target }: { active: boolean; target: number }) {
+  const [val, setVal] = useState(0)
+  useEffect(() => {
+    if (!active) {
+      setVal(0)
+      return
+    }
+    let n = 0
+    const id = setInterval(() => {
+      n += 2
+      if (n >= target) {
+        n = target
+        clearInterval(id)
+      }
+      setVal(n)
+    }, 28)
+    return () => clearInterval(id)
+  }, [active, target])
+  return <>{val}</>
+}
+
+/* ---------- Version B: a continuous "signal pipeline" that builds one signal card
+   end-to-end as a pulse travels through Scan → Score → Alert, then cycles tickers. ---------- */
+const PIPELINE_CYCLE_MS = 9000
+
+function DemoWindowB({ setActive }: { setActive: (n: number) => void }) {
+  const [progress, setProgress] = useState(0)
+  const [signalIndex, setSignalIndex] = useState(0)
+
+  useEffect(() => {
+    const stepMs = 80
+    const inc = 100 / (PIPELINE_CYCLE_MS / stepMs)
+    const id = setInterval(() => {
+      setProgress((p) => {
+        const next = p + inc
+        if (next >= 100) {
+          setSignalIndex((si) => (si + 1) % signals.length)
+          return 0
+        }
+        return next
+      })
+    }, stepMs)
+    return () => clearInterval(id)
+  }, [])
+
+  const activeNode = progress < 34 ? 0 : progress < 67 ? 1 : 2
+
+  useEffect(() => {
+    setActive(activeNode)
+  }, [activeNode, setActive])
+
+  const signal = signals[signalIndex]
+
+  const jumpTo = (node: number) => setProgress(node === 0 ? 0 : node === 1 ? 34 : 67)
+
+  return (
+    <div className="demo-window">
+      <div className="demo-titlebar">
+        <div className="demo-dots"><span /><span /><span /></div>
+        <span className="demo-titletext mono">tradesignal.app — signal pipeline</span>
+      </div>
+      <div className="demo-body">
+        <div className="pipeline-wrap">
+          <div className="pipeline-track">
+            <div className="pipeline-line">
+              <div className="pipeline-line-fill" style={{ width: `${progress}%` }} />
+            </div>
+            {(['SCAN', 'SCORE', 'ALERT'] as const).map((label, i) => {
+              const Icon = i === 0 ? Search : i === 1 ? Activity : Bell
+              return (
+                <button
+                  key={label}
+                  className={`pipeline-node ${activeNode >= i ? 'reached' : ''} ${activeNode === i ? 'active' : ''}`}
+                  onClick={() => jumpTo(i)}
+                >
+                  <span className="pipeline-node-icon"><Icon size={14} /></span>
+                  <span className="mono pipeline-node-label">{label}</span>
+                </button>
+              )
+            })}
+          </div>
+
+          <div className="ticket-card">
+            <div className={`ticket-row ${activeNode >= 0 ? 'revealed' : ''}`}>
+              <span style={{ fontFamily: '"Playfair Display", serif', fontSize: 20, fontWeight: 700 }}>{signal.ticker}</span>
+              <span className="mono" style={{ fontSize: 11, color: signal.dir === 'LONG' ? '#7ec8a0' : '#c87e7e', marginLeft: 10 }}>
+                {signal.dir === 'LONG' ? '▲' : '▼'} {signal.dir}
+              </span>
+            </div>
+            <div className={`ticket-row ${activeNode >= 1 ? 'revealed' : ''}`}>
+              <span className="mono" style={{ fontSize: 11, color: 'rgba(232,224,212,0.6)' }}>RSI {signal.rsi} · {signal.macd}</span>
+              <span style={{ fontFamily: '"Playfair Display", serif', fontSize: 22, fontWeight: 700, marginLeft: 'auto', color: signal.score >= 55 ? '#e8e0d4' : 'rgba(232,224,212,0.4)' }}>{signal.score}</span>
+            </div>
+            <div className={`ticket-row levels ${activeNode >= 2 ? 'revealed' : ''}`}>
+              <span className="mono">E <strong>${signal.entry}</strong></span>
+              <span className="mono" style={{ color: '#c87e7e' }}>S ${signal.stop}</span>
+              <span className="mono" style={{ color: '#7ec8a0' }}>T ${signal.target}</span>
+            </div>
+          </div>
+
+          <div className="pipeline-dots">
+            {signals.map((s, i) => (
+              <button
+                key={s.ticker}
+                className={`pipeline-dot ${i === signalIndex ? 'active' : ''}`}
+                onClick={() => { setSignalIndex(i); setProgress(0) }}
+                aria-label={s.ticker}
+              />
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+const scanTickers = [
+  { t: 'AAPL', pct: 40 },
+  { t: 'NVDA', pct: 85 },
+  { t: 'MSFT', pct: 55 },
+  { t: 'AMD', pct: 70 },
+  { t: 'TSLA', pct: 30 },
+  { t: 'META', pct: 60 },
+]
+
+const scoreRows = [
+  { label: 'RSI 66.7', pct: 67 },
+  { label: 'MACD · Bearish Cross', pct: 80 },
+  { label: 'News Sentiment · Negative', pct: 55 },
+]
+
+function DemoWindowA({ active, setActive }: { active: number; setActive: (n: number) => void }) {
+  return (
+    <div className="demo-window">
+      <div className="demo-titlebar">
+        <div className="demo-dots"><span /><span /><span /></div>
+        <span className="demo-titletext mono">tradesignal.app — live preview</span>
+      </div>
+      <div className="demo-progress-row">
+        {[0, 1, 2].map((i) => (
+          <button key={i} className="demo-progress-track" onClick={() => setActive(i)} aria-label={`Show step ${i + 1}`}>
+            <div
+              className={`demo-progress-fill ${i < active ? 'filled' : ''} ${i === active ? 'active' : ''}`}
+              style={i === active ? { animationDuration: `${DEMO_STEP_DURATION}ms` } : {}}
+            />
+          </button>
+        ))}
+      </div>
+      <div className="demo-body">
+        {active === 0 && (
+          <div className="demo-scan">
+            <div className="demo-scan-header">
+              <Search size={13} color="rgba(232,224,212,0.55)" />
+              <span className="mono">SCANNING <ScanCounter active={active === 0} />/50 TICKERS</span>
+            </div>
+            <div className="demo-scan-list">
+              {scanTickers.map((row, i) => (
+                <div key={row.t} className="demo-scan-row" style={{ animationDelay: `${i * 90}ms` }}>
+                  <span className="mono">{row.t}</span>
+                  <span className="demo-scan-bar">
+                    <span style={{ width: `${row.pct}%`, animationDelay: `${i * 90 + 200}ms` }} />
+                  </span>
+                </div>
+              ))}
+              <div className="demo-sweep" />
+            </div>
+          </div>
+        )}
+        {active === 1 && (
+          <div className="demo-score">
+            <div className="demo-score-ticker">
+              <span style={{ fontFamily: '"Playfair Display", serif', fontSize: 22, fontWeight: 700 }}>NVDA</span>
+              <span className="mono" style={{ fontSize: 11, color: '#c87e7e' }}>▼ SHORT</span>
+            </div>
+            <div className="demo-score-rows">
+              {scoreRows.map((r, i) => (
+                <div key={r.label} className="demo-score-row">
+                  <span className="mono">{r.label}</span>
+                  <span className="demo-score-track">
+                    <span style={{ width: `${r.pct}%`, animationDelay: `${i * 150}ms` }} />
+                  </span>
+                </div>
+              ))}
+            </div>
+            <div className="demo-score-ring">
+              <div className="demo-score-num"><ScoreCounter active={active === 1} target={58} /></div>
+              <span className="mono" style={{ fontSize: 9, color: 'rgba(232,224,212,0.45)' }}>CONFIDENCE</span>
+            </div>
+          </div>
+        )}
+        {active === 2 && (
+          <div className="demo-alert-wrap">
+            <div className="demo-alert-card">
+              <div className="demo-alert-top">
+                <Bell size={13} color="#e8e0d4" />
+                <span className="mono" style={{ fontSize: 10, letterSpacing: '0.06em' }}>TRADESIGNAL ALERT</span>
+                <span className="mono" style={{ fontSize: 9, color: 'rgba(232,224,212,0.4)', marginLeft: 'auto' }}>JUST NOW</span>
+              </div>
+              <div className="demo-alert-main">
+                <span style={{ fontFamily: '"Playfair Display", serif', fontSize: 18, fontWeight: 700 }}>NVDA</span>
+                <span className="mono" style={{ fontSize: 11, color: '#c87e7e' }}>▼ SHORT · SCORE 58</span>
+              </div>
+              <div className="demo-alert-levels mono">
+                <span>E <strong>$219.51</strong></span>
+                <span style={{ color: '#c87e7e' }}>S $236.19</span>
+                <span style={{ color: '#7ec8a0' }}>T $186.14</span>
+              </div>
+              <div className="demo-alert-foot mono">Sent to your browser · Manual review recommended</div>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
 
 const signals = [
   { ticker: 'NVDA', dir: 'SHORT', score: 58, rsi: 66.7, macd: 'Bearish · MACD Cross', entry: '219.51', stop: '236.19', target: '186.14' },
@@ -35,11 +283,79 @@ const CSS = `
   .feat-title { font-size: 17px; font-weight: 700; margin-bottom: 10px; line-height: 1.2; color: #e8e0d4; }
   .feat-desc { font-family: "Inter", sans-serif; font-size: 13px; line-height: 1.65; color: rgba(232,224,212,0.6); font-weight: 300; }
   .big-number { font-family: "Playfair Display", serif; font-size: 48px; font-weight: 900; line-height: 1; letter-spacing: -0.04em; color: #e8e0d4; }
-  .step-card { padding: 32px 0; border-bottom: 1px solid rgba(232,224,212,0.1); }
+  .step-card { padding: 28px 0; border-bottom: 1px solid rgba(232,224,212,0.1); cursor: pointer; transition: opacity 0.25s; }
   .step-card:last-child { border-bottom: none; }
-  .demo-placeholder { border: 1px dashed rgba(232,224,212,0.25); background: rgba(232,224,212,0.02); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; height: 100%; min-height: 340px; text-align: center; padding: 24px; }
+  .step-card.dim { opacity: 0.4; }
   .footer-link { font-family: "Inter", sans-serif; font-size: 11px; letter-spacing: 0.04em; color: rgba(232,224,212,0.5); text-decoration: none; transition: color 0.15s; }
   .footer-link:hover { color: #e8e0d4; }
+
+  /* Live demo window */
+  .demo-window { border: 1px solid rgba(232,224,212,0.15); background: #050505; border-radius: 6px; overflow: hidden; height: 100%; min-height: 380px; display: flex; flex-direction: column; }
+  .demo-titlebar { display: flex; align-items: center; gap: 10px; padding: 12px 16px; border-bottom: 1px solid rgba(232,224,212,0.08); background: rgba(232,224,212,0.02); }
+  .demo-dots { display: flex; gap: 5px; }
+  .demo-dots span { width: 7px; height: 7px; border-radius: 50%; background: rgba(232,224,212,0.18); display: block; }
+  .demo-titletext { font-size: 10px; color: rgba(232,224,212,0.4); letter-spacing: 0.04em; }
+  .demo-progress-row { display: flex; gap: 6px; padding: 14px 16px 0; }
+  .demo-progress-track { flex: 1; height: 3px; background: rgba(232,224,212,0.12); border-radius: 2px; overflow: hidden; border: none; padding: 0; cursor: pointer; }
+  .demo-progress-fill { display: block; height: 100%; width: 0%; background: rgba(232,224,212,0.75); }
+  .demo-progress-fill.filled { width: 100%; }
+  .demo-progress-fill.active { animation: fillProgress linear forwards; }
+  .demo-body { flex: 1; padding: 28px; display: flex; align-items: center; justify-content: center; }
+
+  .demo-scan { width: 100%; }
+  .demo-scan-header { display: flex; align-items: center; gap: 8px; font-size: 10px; letter-spacing: 0.08em; color: rgba(232,224,212,0.55); margin-bottom: 18px; }
+  .demo-scan-list { position: relative; display: flex; flex-direction: column; gap: 12px; overflow: hidden; min-height: 220px; padding-top: 4px; }
+  .demo-scan-row { display: flex; align-items: center; justify-content: space-between; font-size: 12px; color: rgba(232,224,212,0.7); opacity: 0; animation: fadeSlideIn 0.4s ease forwards; }
+  .demo-scan-bar { flex: 1; margin-left: 12px; height: 3px; background: rgba(232,224,212,0.08); border-radius: 2px; overflow: hidden; display: block; max-width: 130px; }
+  .demo-scan-bar span { display: block; height: 100%; transform-origin: left; transform: scaleX(0); background: rgba(126,200,160,0.65); animation: barGrowScale 1s ease forwards; }
+  .demo-sweep { position: absolute; left: 0; right: 0; height: 50px; top: -50px; background: linear-gradient(180deg, transparent, rgba(232,224,212,0.07), transparent); animation: scanSweepTop 2.6s linear infinite; pointer-events: none; }
+
+  .demo-score { width: 100%; display: flex; flex-direction: column; gap: 22px; }
+  .demo-score-ticker { display: flex; align-items: baseline; gap: 10px; }
+  .demo-score-rows { display: flex; flex-direction: column; gap: 12px; }
+  .demo-score-row { display: flex; flex-direction: column; gap: 6px; font-size: 11px; color: rgba(232,224,212,0.55); }
+  .demo-score-track { height: 4px; background: rgba(232,224,212,0.08); border-radius: 2px; overflow: hidden; }
+  .demo-score-track span { display: block; height: 100%; transform-origin: left; transform: scaleX(0); background: #e8e0d4; opacity: 0.65; animation: barGrowScale 0.9s ease forwards; }
+  .demo-score-ring { align-self: center; width: 88px; height: 88px; border-radius: 50%; border: 2px solid rgba(232,224,212,0.25); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; margin-top: 2px; }
+  .demo-score-num { font-family: "Playfair Display", serif; font-size: 28px; font-weight: 900; color: #e8e0d4; }
+
+  .demo-alert-wrap { width: 100%; display: flex; justify-content: center; }
+  .demo-alert-card { width: 100%; max-width: 280px; border: 1px solid rgba(232,224,212,0.2); background: rgba(232,224,212,0.03); padding: 18px; border-radius: 4px; animation: fadeSlideIn 0.5s ease; }
+  .demo-alert-top { display: flex; align-items: center; gap: 8px; margin-bottom: 14px; }
+  .demo-alert-main { display: flex; align-items: baseline; gap: 10px; margin-bottom: 12px; }
+  .demo-alert-levels { display: flex; gap: 14px; font-size: 11px; color: rgba(232,224,212,0.6); margin-bottom: 10px; flex-wrap: wrap; }
+  .demo-alert-foot { font-size: 9px; color: rgba(232,224,212,0.35); letter-spacing: 0.03em; }
+
+  @keyframes fillProgress { from { width: 0%; } to { width: 100%; } }
+  @keyframes fadeSlideIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+  @keyframes barGrowScale { to { transform: scaleX(1); } }
+  @keyframes scanSweepTop { 0% { top: -50px; } 100% { top: 260px; } }
+
+  /* Pipeline demo (version B) */
+  .pipeline-wrap { width: 100%; display: flex; flex-direction: column; gap: 32px; }
+  .pipeline-track { position: relative; display: flex; justify-content: space-between; align-items: center; padding: 0 4px; }
+  .pipeline-line { position: absolute; left: 24px; right: 24px; top: 15px; height: 2px; background: rgba(232,224,212,0.12); }
+  .pipeline-line-fill { height: 100%; background: rgba(126,200,160,0.65); transition: width 0.08s linear; }
+  .pipeline-node { position: relative; z-index: 1; background: none; border: none; display: flex; flex-direction: column; align-items: center; gap: 8px; cursor: pointer; padding: 0; }
+  .pipeline-node-icon { width: 32px; height: 32px; border-radius: 50%; border: 1.5px solid rgba(232,224,212,0.2); display: flex; align-items: center; justify-content: center; color: rgba(232,224,212,0.35); background: #050505; transition: all 0.25s; }
+  .pipeline-node.reached .pipeline-node-icon { border-color: rgba(126,200,160,0.55); color: #7ec8a0; }
+  .pipeline-node.active .pipeline-node-icon { border-color: #e8e0d4; color: #e8e0d4; box-shadow: 0 0 0 4px rgba(232,224,212,0.08); }
+  .pipeline-node-label { font-size: 9px; letter-spacing: 0.08em; color: rgba(232,224,212,0.4); }
+  .pipeline-node.active .pipeline-node-label, .pipeline-node.reached .pipeline-node-label { color: rgba(232,224,212,0.7); }
+
+  .ticket-card { border: 1px solid rgba(232,224,212,0.12); background: rgba(232,224,212,0.02); padding: 20px; border-radius: 4px; display: flex; flex-direction: column; gap: 16px; }
+  .ticket-row { display: flex; align-items: center; opacity: 0; transform: translateY(6px); transition: opacity 0.4s ease, transform 0.4s ease; min-height: 26px; }
+  .ticket-row.revealed { opacity: 1; transform: none; }
+  .ticket-row.levels { gap: 16px; flex-wrap: wrap; font-size: 12px; }
+
+  .pipeline-dots { display: flex; gap: 6px; justify-content: center; }
+  .pipeline-dot { width: 6px; height: 6px; border-radius: 50%; background: rgba(232,224,212,0.2); border: none; padding: 0; cursor: pointer; transition: background 0.2s, transform 0.2s; }
+  .pipeline-dot.active { background: rgba(232,224,212,0.8); transform: scale(1.3); }
+
+  /* Comparison toggle — remove once you've picked a version */
+  .version-toggle { display: flex; gap: 8px; }
+  .version-toggle button { background: transparent; border: 1px solid rgba(232,224,212,0.2); color: rgba(232,224,212,0.5); font-family: "DM Mono", monospace; font-size: 10px; letter-spacing: 0.06em; padding: 7px 16px; cursor: pointer; transition: all 0.2s; }
+  .version-toggle button.active { border-color: #e8e0d4; color: #0a0a0a; background: #e8e0d4; }
 
   /* Responsive grid classes */
   .hero-grid { display: grid; grid-template-columns: 1fr 420px; gap: 80px; align-items: start; }
@@ -71,6 +387,7 @@ const CSS = `
     .btn-dark, .btn-outline { padding: 10px 16px !important; font-size: 11px !important; }
     .hero-btns { flex-wrap: wrap; }
     .signal-feed { display: none !important; }
+    .how-header { flex-direction: column !important; align-items: flex-start !important; gap: 16px !important; }
   }
 `
 
@@ -91,6 +408,8 @@ function getMarketStatus() {
 
 export default function LandingPage() {
   const [marketStatus, setMarketStatus] = useState('NYSE OPEN')
+  const [demoStep, setDemoStep] = useCycle(3, DEMO_STEP_DURATION)
+  const [demoVersion, setDemoVersion] = useState<'A' | 'B'>('A')
 
   useEffect(() => {
     setMarketStatus(getMarketStatus())
@@ -213,18 +532,29 @@ export default function LandingPage() {
 
       {/* How it works + demo */}
       <section className="lp-section" style={{ padding: '80px 48px', borderBottom: '1px solid rgba(232,224,212,0.07)' }}>
-        <div style={{ marginBottom: '48px' }}>
-          <div className="divider" />
-          <h2 className="lp-h2" style={{ fontSize: '40px', fontWeight: 900, letterSpacing: '-0.02em', lineHeight: 1.1, color: '#e8e0d4' }}>
-            How it works.
-          </h2>
+        <div className="how-header" style={{ marginBottom: '48px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
+          <div>
+            <div className="divider" />
+            <h2 className="lp-h2" style={{ fontSize: '40px', fontWeight: 900, letterSpacing: '-0.02em', lineHeight: 1.1, color: '#e8e0d4' }}>
+              How it works.
+            </h2>
+          </div>
+          {/* TEMP: comparison toggle for picking a version — delete this block once decided */}
+          <div className="version-toggle">
+            <button className={demoVersion === 'A' ? 'active' : ''} onClick={() => setDemoVersion('A')}>VERSION A</button>
+            <button className={demoVersion === 'B' ? 'active' : ''} onClick={() => setDemoVersion('B')}>VERSION B</button>
+          </div>
         </div>
         <div className="how-grid">
           <div>
             {howItWorks.map((s, i) => (
-              <div key={i} className="step-card">
+              <div
+                key={i}
+                className={`step-card ${demoStep === i ? '' : 'dim'}`}
+                onClick={() => setDemoStep(i)}
+              >
                 <div style={{ display: 'flex', gap: '20px', alignItems: 'flex-start' }}>
-                  <span style={{ fontFamily: '"Playfair Display", serif', fontSize: '28px', fontWeight: 900, color: 'rgba(232,224,212,0.3)', lineHeight: 1 }}>{s.step}</span>
+                  <span style={{ fontFamily: '"Playfair Display", serif', fontSize: '28px', fontWeight: 900, color: demoStep === i ? 'rgba(232,224,212,0.7)' : 'rgba(232,224,212,0.3)', lineHeight: 1, transition: 'color 0.25s' }}>{s.step}</span>
                   <div>
                     <div style={{ fontSize: '18px', fontWeight: 700, marginBottom: '8px', color: '#e8e0d4' }}>{s.title}</div>
                     <p className="feat-desc" style={{ maxWidth: '380px' }}>{s.desc}</p>
@@ -234,13 +564,11 @@ export default function LandingPage() {
             ))}
           </div>
 
-          {/* Demo placeholder — swap for an autoplay loop of the scanner / AI assistant */}
-          <div className="demo-placeholder">
-            <PlayCircle size={36} color="rgba(232,224,212,0.4)" />
-            <div className="sans" style={{ fontSize: '13px', color: 'rgba(232,224,212,0.5)', fontWeight: 300, maxWidth: '260px' }}>
-              Product demo goes here — a short looping clip of the scanner running or the AI assistant answering a live question works best.
-            </div>
-          </div>
+          {demoVersion === 'A' ? (
+            <DemoWindowA active={demoStep} setActive={setDemoStep} />
+          ) : (
+            <DemoWindowB setActive={setDemoStep} />
+          )}
         </div>
       </section>
 
