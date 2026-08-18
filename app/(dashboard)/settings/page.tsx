@@ -3,8 +3,7 @@
 import { useState, useEffect } from 'react'
 import { Spinner } from '@/components/ui/spinner'
 import { Slider } from '@/components/ui/slider'
-import { Save, CheckCircle, Bell, Sliders } from 'lucide-react'
-import { createClient } from '@/lib/supabase/client'
+import { Save, CheckCircle, Sliders, AlertTriangle } from 'lucide-react'
 import type { DbSignalSettings } from '@/lib/types'
 
 const SIGNAL_TYPES = [
@@ -15,6 +14,17 @@ const SIGNAL_TYPES = [
   { id: 'OPTIONS_FLOW', label: 'Options Flow', description: 'Unusual options activity correlation' },
   { id: 'MA_CROSS', label: 'Moving Average Cross', description: '9/21 EMA and 50/200 SMA crosses' },
 ]
+
+// Notifications aren't built yet — these stay off/false regardless of what's in
+// the database, so the feature is fully scrapped from the user's perspective
+// without needing a schema or API change.
+const DEFAULT_SETTINGS: Partial<DbSignalSettings> = {
+  min_score: 60,
+  enabled_signals: ['RSI', 'MACD', 'VWAP', 'VOLUME', 'OPTIONS_FLOW'],
+  push_notifications: false,
+  email_digest: false,
+  scan_watchlist_only: false,
+}
 
 const CSS = `
   @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;900&family=DM+Mono:wght@300;400;500&family=DM+Sans:wght@300;400;500;600&display=swap');
@@ -28,62 +38,121 @@ const CSS = `
   .st-signal-row { display: flex; align-items: center; justify-content: space-between; padding: 10px 12px; border: 1px solid rgba(232,224,212,0.07); margin-bottom: 5px; transition: border-color 0.15s; }
   .st-signal-row:hover { border-color: rgba(232,224,212,0.15); }
   .st-signal-row.on { border-color: rgba(232,224,212,0.18); background: rgba(232,224,212,0.02); }
-  .st-switch { width: 36px; height: 20px; border-radius: 10px; border: 1px solid rgba(232,224,212,0.2); background: rgba(232,224,212,0.05); cursor: pointer; position: relative; transition: all 0.2s; flex-shrink: 0; }
+  .st-switch { width: 36px; height: 20px; border-radius: 10px; border: 1px solid rgba(232,224,212,0.2); background: rgba(232,224,212,0.05); cursor: pointer; position: relative; transition: all 0.2s; flex-shrink: 0; padding: 0; font: inherit; }
   .st-switch.on { background: rgba(232,224,212,0.2); border-color: rgba(232,224,212,0.4); }
-  .st-knob { width: 14px; height: 14px; border-radius: 50%; background: #e8e0d4; position: absolute; top: 2px; left: 2px; transition: transform 0.2s; }
+  .st-switch:focus-visible { outline: 2px solid #e8e0d4; outline-offset: 2px; }
+  .st-knob { width: 14px; height: 14px; border-radius: 50%; background: #e8e0d4; position: absolute; top: 2px; left: 2px; transition: transform 0.2s; pointer-events: none; }
   .st-switch.on .st-knob { transform: translateX(16px); }
-  .btn-save { display: flex; align-items: center; gap: 8px; padding: 12px 28px; background: #e8e0d4; color: #0a0a0a; border: none; font-family: "DM Sans", sans-serif; font-size: 13px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; cursor: pointer; transition: opacity 0.15s; width: 100%; justify-content: center; }
+  .st-footer { display: flex; align-items: center; justify-content: flex-end; gap: 16px; margin-top: 20px; flex-wrap: wrap; }
+  .btn-save { display: inline-flex; align-items: center; gap: 8px; padding: 12px 28px; background: #e8e0d4; color: #0a0a0a; border: none; font-family: "DM Sans", sans-serif; font-size: 13px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; cursor: pointer; transition: opacity 0.15s; }
   .btn-save:hover { opacity: 0.85; }
   .btn-save:disabled { opacity: 0.4; cursor: not-allowed; }
+  .st-banner { display: flex; align-items: flex-start; gap: 8px; padding: 10px 12px; font-family: "DM Sans", sans-serif; font-size: 12px; margin-bottom: 16px; }
+  .st-banner.warn { border: 1px solid rgba(200,126,126,0.3); background: rgba(200,126,126,0.05); color: #c87e7e; }
+  .st-unsaved { font-family: "DM Mono", monospace; font-size: 10px; color: rgba(232,224,212,0.4); letter-spacing: 0.04em; }
+  .st-saved { font-family: "DM Mono", monospace; font-size: 10px; color: #7ec8a0; letter-spacing: 0.04em; }
   @media (max-width: 768px) {
-    .st-grid { grid-template-columns: 1fr !important; }
     .st-page { padding: 16px !important; }
     .st-box-header { flex-wrap: wrap; }
+    .st-footer { justify-content: stretch !important; }
+    .btn-save { width: 100%; justify-content: center; }
   }
 `
 
+function ToggleSwitch({
+  checked,
+  label,
+  onToggle,
+}: {
+  checked: boolean
+  label: string
+  onToggle: () => void
+}) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={checked}
+      aria-label={label}
+      className={`st-switch ${checked ? 'on' : ''}`}
+      onClick={onToggle}
+    >
+      <span className="st-knob" />
+    </button>
+  )
+}
+
 export default function SettingsPage() {
-  const [settings, setSettings] = useState<Partial<DbSignalSettings>>({
-    min_score: 60,
-    enabled_signals: ['RSI', 'MACD', 'VWAP', 'VOLUME', 'OPTIONS_FLOW'],
-    push_notifications: true,
-    email_digest: false,
-    scan_watchlist_only: false,
-  })
+  const [settings, setSettings] = useState<Partial<DbSignalSettings>>(DEFAULT_SETTINGS)
+  const [savedSettings, setSavedSettings] = useState<Partial<DbSignalSettings>>(DEFAULT_SETTINGS)
   const [isLoading, setIsLoading] = useState(true)
   const [isSaving, setIsSaving] = useState(false)
   const [saved, setSaved] = useState(false)
-  const supabase = createClient()
+  const [loadError, setLoadError] = useState<string | null>(null)
+  const [saveError, setSaveError] = useState<string | null>(null)
+
+  const hasUnsavedChanges = JSON.stringify(settings) !== JSON.stringify(savedSettings)
 
   useEffect(() => { loadSettings() }, [])
 
+  useEffect(() => {
+    const handler = (e: BeforeUnloadEvent) => {
+      if (!hasUnsavedChanges) return
+      e.preventDefault()
+      e.returnValue = ''
+    }
+    window.addEventListener('beforeunload', handler)
+    return () => window.removeEventListener('beforeunload', handler)
+  }, [hasUnsavedChanges])
+
   const loadSettings = async () => {
     setIsLoading(true)
+    setLoadError(null)
     try {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) return
-      const { data, error } = await supabase.from('signal_settings').select('*').eq('user_id', user.id).single()
-      if (data && !error) setSettings(data)
-    } catch (e) { console.error(e) }
-    finally { setIsLoading(false) }
+      const res = await fetch('/api/settings')
+      if (!res.ok) throw new Error(`Request failed (${res.status})`)
+      const data = await res.json()
+      // Notifications stay forced off regardless of what's stored, since the
+      // feature isn't live — this keeps old saved `true` values from resurfacing.
+      const normalized = { ...data, push_notifications: false, email_digest: false }
+      setSettings(normalized)
+      setSavedSettings(normalized)
+    } catch (e) {
+      console.error('Failed to load settings:', e)
+      setLoadError('Couldn\u2019t load your saved settings — showing defaults. Anything you save now will still work.')
+    } finally {
+      setIsLoading(false)
+    }
   }
 
   const saveSettings = async () => {
-    setIsSaving(true); setSaved(false)
+    setIsSaving(true)
+    setSaved(false)
+    setSaveError(null)
     try {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) return
-      const { error } = await supabase.from('signal_settings').upsert({
-        user_id: user.id,
-        min_score: settings.min_score,
-        enabled_signals: settings.enabled_signals,
-        push_notifications: settings.push_notifications,
-        email_digest: settings.email_digest,
-        scan_watchlist_only: settings.scan_watchlist_only,
+      const res = await fetch('/api/settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          minScore: settings.min_score,
+          enabledSignals: settings.enabled_signals,
+          pushNotifications: false,
+          emailDigest: false,
+          scanWatchlistOnly: settings.scan_watchlist_only,
+        }),
       })
-      if (!error) { setSaved(true); setTimeout(() => setSaved(false), 3000) }
-    } catch (e) { console.error(e) }
-    finally { setIsSaving(false) }
+      if (!res.ok) throw new Error(`Request failed (${res.status})`)
+      const data = await res.json()
+      setSettings(data)
+      setSavedSettings(data)
+      setSaved(true)
+      setTimeout(() => setSaved(false), 3000)
+    } catch (e) {
+      console.error('Failed to save settings:', e)
+      setSaveError('Couldn\u2019t save your settings. Check your connection and try again.')
+    } finally {
+      setIsSaving(false)
+    }
   }
 
   const toggleSignal = (id: string) => {
@@ -107,13 +176,18 @@ export default function SettingsPage() {
       <div style={{ marginBottom: '28px' }}>
         <div style={{ fontFamily: '"DM Mono", monospace', fontSize: '10px', letterSpacing: '0.1em', textTransform: 'uppercase', color: 'rgba(232,224,212,0.4)', marginBottom: '8px' }}>Preferences</div>
         <h1 style={{ fontFamily: '"Playfair Display", serif', fontSize: '32px', fontWeight: 900, letterSpacing: '-0.02em', color: '#e8e0d4', lineHeight: 1 }}>Settings</h1>
-        <p style={{ fontSize: '14px', color: 'rgba(232,224,212,0.45)', marginTop: '6px', fontWeight: 300 }}>Configure your signal preferences and notifications</p>
+        <p style={{ fontSize: '14px', color: 'rgba(232,224,212,0.45)', marginTop: '6px', fontWeight: 300 }}>Configure your signal detection preferences</p>
       </div>
 
-      {/* Two column layout */}
-      <div className="st-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 320px', gap: '20px', alignItems: 'start' }}>
+      {loadError && (
+        <div className="st-banner warn">
+          <AlertTriangle size={13} style={{ flexShrink: 0, marginTop: '1px' }} />
+          <span>{loadError}</span>
+        </div>
+      )}
 
-        {/* Left — Signal Detection */}
+      {/* Single column — Signal Detection */}
+      <div>
         <div className="st-box">
           <div className="st-box-header">
             <Sliders size={13} style={{ color: 'rgba(232,224,212,0.5)' }} />
@@ -146,9 +220,7 @@ export default function SettingsPage() {
                     <div style={{ fontSize: '13px', color: enabled ? '#e8e0d4' : 'rgba(232,224,212,0.5)', fontWeight: 500 }}>{signal.label}</div>
                     <div style={{ fontFamily: '"DM Mono", monospace', fontSize: '9px', color: 'rgba(232,224,212,0.3)', marginTop: '2px' }}>{signal.description}</div>
                   </div>
-                  <div className={`st-switch ${enabled ? 'on' : ''}`} onClick={() => toggleSignal(signal.id)}>
-                    <div className="st-knob" />
-                  </div>
+                  <ToggleSwitch checked={enabled} label={signal.label} onToggle={() => toggleSignal(signal.id)} />
                 </div>
               )
             })}
@@ -161,58 +233,29 @@ export default function SettingsPage() {
                 <div style={{ fontSize: '13px', color: 'rgba(232,224,212,0.8)', fontWeight: 500 }}>Scan Watchlist Only</div>
                 <div className="st-desc">Only scan stocks in your watchlist</div>
               </div>
-              <div className={`st-switch ${settings.scan_watchlist_only ? 'on' : ''}`} onClick={() => setSettings({ ...settings, scan_watchlist_only: !settings.scan_watchlist_only })}>
-                <div className="st-knob" />
-              </div>
+              <ToggleSwitch
+                checked={!!settings.scan_watchlist_only}
+                label="Scan Watchlist Only"
+                onToggle={() => setSettings({ ...settings, scan_watchlist_only: !settings.scan_watchlist_only })}
+              />
             </div>
           </div>
         </div>
 
-        {/* Right — Notifications + Save */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-
-          {/* Notifications */}
-          <div className="st-box">
-            <div className="st-box-header">
-              <Bell size={13} style={{ color: 'rgba(232,224,212,0.5)' }} />
-              <div>
-                <div style={{ fontFamily: '"DM Mono", monospace', fontSize: '11px', letterSpacing: '0.06em', color: 'rgba(232,224,212,0.7)' }}>Notifications</div>
-                <div style={{ fontFamily: '"DM Sans", sans-serif', fontSize: '11px', color: 'rgba(232,224,212,0.35)', fontWeight: 300 }}>How to be notified about signals</div>
-              </div>
-            </div>
-            <div className="st-box-body">
-              <div className="st-row">
-                <div>
-                  <div style={{ fontSize: '13px', color: 'rgba(232,224,212,0.8)', fontWeight: 500 }}>Push Notifications</div>
-                  <div className="st-desc">Browser alerts for high-priority signals</div>
-                </div>
-                <div className={`st-switch ${settings.push_notifications ? 'on' : ''}`} onClick={() => setSettings({ ...settings, push_notifications: !settings.push_notifications })}>
-                  <div className="st-knob" />
-                </div>
-              </div>
-              <div className="st-row">
-                <div>
-                  <div style={{ fontSize: '13px', color: 'rgba(232,224,212,0.8)', fontWeight: 500 }}>Daily Email Digest</div>
-                  <div className="st-desc">Signal summary at end of trading day</div>
-                </div>
-                <div className={`st-switch ${settings.email_digest ? 'on' : ''}`} onClick={() => setSettings({ ...settings, email_digest: !settings.email_digest })}>
-                  <div className="st-knob" />
-                </div>
-              </div>
-            </div>
+        {saveError && (
+          <div className="st-banner warn" style={{ marginTop: '16px', marginBottom: 0 }}>
+            <AlertTriangle size={13} style={{ flexShrink: 0, marginTop: '1px' }} />
+            <span>{saveError}</span>
           </div>
+        )}
 
-          {/* Save */}
-          <button className={`btn-save ${saved ? 'saved' : ''}`} onClick={saveSettings} disabled={isSaving}>
+        <div className="st-footer">
+          {saved && <span className="st-saved">Settings updated successfully</span>}
+          {!saved && !isSaving && hasUnsavedChanges && <span className="st-unsaved">You have unsaved changes</span>}
+          <button className="btn-save" onClick={saveSettings} disabled={isSaving}>
             {isSaving ? <Spinner className="h-3 w-3" /> : saved ? <CheckCircle size={14} /> : <Save size={14} />}
-            {saved ? 'Saved!' : 'Save Settings'}
+            {isSaving ? 'Saving...' : saved ? 'Saved!' : 'Save Settings'}
           </button>
-
-          {saved && (
-            <div style={{ fontFamily: '"DM Mono", monospace', fontSize: '10px', color: '#7ec8a0', letterSpacing: '0.04em', textAlign: 'center' }}>
-              Settings updated successfully
-            </div>
-          )}
         </div>
       </div>
     </div>

@@ -4,15 +4,22 @@ import useSWR from 'swr'
 import { SignalCard } from '@/components/signals/signal-card'
 import { QuoteCard } from '@/components/market/quote-card'
 import { Spinner } from '@/components/ui/spinner'
-import { TrendingUp, TrendingDown, Bell, RefreshCw, Eye, Activity, Zap } from 'lucide-react'
+import { TrendingUp, TrendingDown, Bell, RefreshCw, Eye, Activity, Zap, AlertTriangle } from 'lucide-react'
 import type { TradeSignal, Quote } from '@/lib/types'
 import Link from 'next/link'
 
-const fetcher = (url: string) => fetch(url).then(r => r.json())
+const fetcher = async (url: string) => {
+  const res = await fetch(url)
+  if (!res.ok) {
+    throw new Error(`Request failed (${res.status})`)
+  }
+  return res.json()
+}
+
 const MARKET_INDICES = ['SPY', 'QQQ', 'DIA', 'IWM']
 
 const CSS = `
-  @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;0,900;1,400&family=DM+Mono:wght@300;400;500&family=DM+Sans:wght@300;400;500;600&display=swap');
+  @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;0,900;1,400&family=DM+Mono:wght@300;400;500&family=DM+Sans:wght@300;400;500;600&display=swap');
 
   .disclaimer { display:flex;align-items:flex-start;justify-content:space-between;gap:16px;padding:14px 20px;border:1px solid rgba(232,224,212,0.12);background:rgba(232,224,212,0.03);margin-bottom:28px; }
   .disclaimer-close { background:none;border:none;color:rgba(232,224,212,0.35);cursor:pointer;padding:2px;font-size:16px;line-height:1;flex-shrink:0;transition:color 0.15s; }
@@ -22,6 +29,7 @@ const CSS = `
   .stat-card:hover { border-color: rgba(232,224,212,0.15); }
   .stat-label { font-family: "DM Mono", monospace; font-size: 9px; letter-spacing: 0.1em; text-transform: uppercase; color: rgba(232,224,212,0.4); margin-bottom: 10px; display: flex; align-items: center; justify-content: space-between; }
   .stat-value { font-family: "Playfair Display", serif; font-size: 36px; font-weight: 900; letter-spacing: -0.02em; color: #e8e0d4; line-height: 1; }
+  .stat-value.skeleton { color: rgba(232,224,212,0.2); }
   .stat-sub { font-family: "DM Sans", sans-serif; font-size: 12px; color: rgba(232,224,212,0.4); margin-top: 6px; font-weight: 300; }
   .section-title { font-family: "Playfair Display", serif; font-size: 22px; font-weight: 900; letter-spacing: -0.01em; color: #e8e0d4; }
   .section-sub { font-family: "DM Sans", sans-serif; font-size: 13px; color: rgba(232,224,212,0.45); margin-top: 2px; font-weight: 300; }
@@ -44,6 +52,10 @@ const CSS = `
   .db-signals { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
   .db-signals-header { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 20px; gap: 16px; }
 
+  .error-banner { display: flex; align-items: center; gap: 10px; padding: 14px 20px; border: 1px solid rgba(200,126,126,0.3); background: rgba(200,126,126,0.05); color: #c87e7e; font-family: "DM Sans", sans-serif; font-size: 13px; font-weight: 400; }
+  .error-state { display: flex; flex-direction: column; align-items: center; padding: 64px 0; border: 1px solid rgba(200,126,126,0.15); }
+  .scan-note { font-family: "DM Sans", sans-serif; font-size: 12px; color: rgba(232,224,212,0.35); margin-top: 10px; font-weight: 300; max-width: 320px; text-align: center; }
+
   @media (max-width: 768px) {
     .db-page { padding: 16px !important; }
     .db-stats { grid-template-columns: repeat(2, 1fr) !important; }
@@ -55,28 +67,61 @@ const CSS = `
   }
 `
 
-export default function DashboardPage() {
-  const [isScanning, setIsScanning] = useState(false)
-  const [showDisclaimer, setShowDisclaimer] = useState(() => {
-    if (typeof window === 'undefined') return false
-    return localStorage.getItem('disclaimer_dismissed') !== 'true'
-  })
-  const [dismissed, setDismissed] = useState<Set<string>>(new Set())
+function ScanNote({ active }: { active: boolean }) {
+  const [elapsed, setElapsed] = useState(0)
 
   useEffect(() => {
+    if (!active) {
+      setElapsed(0)
+      return
+    }
+    const id = setInterval(() => setElapsed((e) => e + 1), 1000)
+    return () => clearInterval(id)
+  }, [active])
+
+  if (elapsed < 6) return null
+  return (
+    <p className="scan-note">
+      Still working — checking live prices and news sentiment across 50+ tickers can take up to 30 seconds.
+    </p>
+  )
+}
+
+export default function DashboardPage() {
+  const [isScanning, setIsScanning] = useState(false)
+  const [showDisclaimer, setShowDisclaimer] = useState(false)
+  const [dismissed, setDismissed] = useState<Set<string>>(new Set())
+
+  // Read localStorage only after mount to avoid a server/client hydration mismatch.
+  useEffect(() => {
     try {
+      if (localStorage.getItem('disclaimer_dismissed') !== 'true') {
+        setShowDisclaimer(true)
+      }
       const stored = localStorage.getItem('db_dismissed_signals')
       if (stored) setDismissed(new Set(JSON.parse(stored)))
-    } catch {}
+    } catch {
+      // localStorage unavailable (e.g. private browsing) — fail open, just show the disclaimer.
+      setShowDisclaimer(true)
+    }
   }, [])
 
-  const { data: indicesData, isLoading: indicesLoading } = useSWR(
+  const {
+    data: indicesData,
+    isLoading: indicesLoading,
+    error: indicesError,
+  } = useSWR(
     '/api/market/quotes?tickers=' + MARKET_INDICES.join(','),
     fetcher,
     { refreshInterval: 60000 }
   )
 
-  const { data: signalsData, isLoading: signalsLoading, mutate: refreshSignals } = useSWR<{
+  const {
+    data: signalsData,
+    isLoading: signalsLoading,
+    error: signalsError,
+    mutate: refreshSignals,
+  } = useSWR<{
     signals: TradeSignal[]
     scannedCount: number
     signalCount: number
@@ -89,15 +134,25 @@ export default function DashboardPage() {
   const handleManualScan = async () => {
     setIsScanning(true)
     setDismissed(new Set())
-    localStorage.removeItem('db_dismissed_signals')
-    await refreshSignals()
-    setIsScanning(false)
+    try {
+      localStorage.removeItem('db_dismissed_signals')
+    } catch {}
+    try {
+      await refreshSignals()
+    } catch {
+      // Error is already surfaced via `signalsError` from SWR — nothing extra to do here,
+      // just make sure a failed scan can't leave the button stuck on "Scanning...".
+    } finally {
+      setIsScanning(false)
+    }
   }
 
   const dismissSignal = (id: string, ticker: string) => {
     setDismissed(prev => {
       const next = new Set([...prev, ticker])
-      localStorage.setItem('db_dismissed_signals', JSON.stringify([...next]))
+      try {
+        localStorage.setItem('db_dismissed_signals', JSON.stringify([...next]))
+      } catch {}
       return next
     })
   }
@@ -106,6 +161,10 @@ export default function DashboardPage() {
   const highConfidenceSignals = signals.filter(s => s.confidence === 'high')
   const bullishSignals = signals.filter(s => s.signalType === 'bullish_entry')
   const bearishSignals = signals.filter(s => s.signalType === 'bearish_entry')
+
+  const isFirstLoad = signalsLoading && !signalsData
+  const showSignalsBusy = signalsLoading || isScanning
+  const showSignalsError = !showSignalsBusy && signalsError && signals.length === 0
 
   return (
     <div className="db-page" style={{ padding: '32px 40px', fontFamily: '"DM Sans", sans-serif', color: '#e8e0d4', minHeight: '100vh', background: '#0a0a0a' }}>
@@ -122,7 +181,7 @@ export default function DashboardPage() {
           </div>
           <button className="disclaimer-close" onClick={() => {
             setShowDisclaimer(false)
-            localStorage.setItem('disclaimer_dismissed', 'true')
+            try { localStorage.setItem('disclaimer_dismissed', 'true') } catch {}
           }}>×</button>
         </div>
       )}
@@ -144,22 +203,22 @@ export default function DashboardPage() {
       <div className="db-stats">
         <div className="stat-card">
           <div className="stat-label">Active Signals <Bell size={11} /></div>
-          <div className="stat-value">{signals.length}</div>
-          <div className="stat-sub">{highConfidenceSignals.length} high confidence</div>
+          <div className={`stat-value ${isFirstLoad ? 'skeleton' : ''}`}>{isFirstLoad ? '—' : signals.length}</div>
+          <div className="stat-sub">{isFirstLoad ? 'Loading...' : `${highConfidenceSignals.length} high confidence`}</div>
         </div>
         <div className="stat-card">
           <div className="stat-label">Bullish <TrendingUp size={11} /></div>
-          <div className="stat-value" style={{ color: '#7ec8a0' }}>{bullishSignals.length}</div>
+          <div className={`stat-value ${isFirstLoad ? 'skeleton' : ''}`} style={isFirstLoad ? {} : { color: '#7ec8a0' }}>{isFirstLoad ? '—' : bullishSignals.length}</div>
           <div className="stat-sub">Potential long entries</div>
         </div>
         <div className="stat-card">
           <div className="stat-label">Bearish <TrendingDown size={11} /></div>
-          <div className="stat-value" style={{ color: '#c87e7e' }}>{bearishSignals.length}</div>
+          <div className={`stat-value ${isFirstLoad ? 'skeleton' : ''}`} style={isFirstLoad ? {} : { color: '#c87e7e' }}>{isFirstLoad ? '—' : bearishSignals.length}</div>
           <div className="stat-sub">Potential short entries</div>
         </div>
         <div className="stat-card">
           <div className="stat-label">Scanned <Activity size={11} /></div>
-          <div className="stat-value">{signalsData?.scannedCount || 0}</div>
+          <div className={`stat-value ${isFirstLoad ? 'skeleton' : ''}`}>{isFirstLoad ? '—' : (signalsData?.scannedCount || 0)}</div>
           <div className="stat-sub">Tickers analyzed</div>
         </div>
       </div>
@@ -174,6 +233,11 @@ export default function DashboardPage() {
           <div style={{ display: 'flex', justifyContent: 'center', padding: '32px' }}>
             <Spinner className="h-6 w-6" />
           </div>
+        ) : indicesError ? (
+          <div className="error-banner">
+            <AlertTriangle size={14} />
+            Couldn&apos;t load market data right now. It&apos;ll retry automatically.
+          </div>
         ) : (
           <div className="db-market">
             {MARKET_INDICES.map(ticker => {
@@ -181,7 +245,7 @@ export default function DashboardPage() {
               if (!quote) return (
                 <div key={ticker} style={{ background: '#0a0a0a', padding: '16px 20px' }}>
                   <div style={{ fontFamily: '"DM Mono", monospace', fontSize: '14px', fontWeight: 500, color: '#e8e0d4' }}>{ticker}</div>
-                  <div style={{ fontSize: '12px', color: 'rgba(232,224,212,0.3)', marginTop: '4px' }}>Loading...</div>
+                  <div style={{ fontSize: '12px', color: 'rgba(232,224,212,0.3)', marginTop: '4px' }}>Unavailable</div>
                 </div>
               )
               return <QuoteCard key={ticker} quote={quote} compact showVolume={false} />
@@ -204,12 +268,24 @@ export default function DashboardPage() {
           </Link>
         </div>
 
-        {signalsLoading || isScanning ? (
+        {showSignalsBusy ? (
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '64px 0' }}>
             <Spinner className="h-8 w-8" />
             <p style={{ fontFamily: '"DM Mono", monospace', fontSize: '11px', color: 'rgba(232,224,212,0.35)', marginTop: '16px', letterSpacing: '0.06em' }}>
               {isScanning ? 'SCANNING MARKETS...' : 'LOADING SIGNALS...'}
             </p>
+            <ScanNote active={showSignalsBusy} />
+          </div>
+        ) : showSignalsError ? (
+          <div className="error-state">
+            <AlertTriangle size={28} strokeWidth={1} style={{ color: '#c87e7e', marginBottom: '16px' }} />
+            <div style={{ fontFamily: '"Playfair Display", serif', fontSize: '20px', fontWeight: 700, color: 'rgba(232,224,212,0.6)', marginBottom: '8px' }}>Couldn&apos;t load signals</div>
+            <p style={{ fontFamily: '"DM Sans", sans-serif', fontSize: '13px', color: 'rgba(232,224,212,0.35)', marginBottom: '24px', fontWeight: 300, maxWidth: '320px', textAlign: 'center' }}>
+              Something went wrong reaching the signal engine. Your connection or our servers may be having an issue.
+            </p>
+            <button className="btn-primary" onClick={handleManualScan}>
+              <RefreshCw size={13} /> Try Again
+            </button>
           </div>
         ) : signals.length === 0 ? (
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '64px 0', border: '1px solid rgba(232,224,212,0.07)' }}>

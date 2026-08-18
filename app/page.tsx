@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { ArrowUpRight, Search, Bell, Activity } from 'lucide-react'
+import { ArrowUpRight, Search, Bell } from 'lucide-react'
 import { useEffect, useState } from 'react'
 
 const DEMO_STEP_DURATION = 4200
@@ -57,101 +57,6 @@ function ScoreCounter({ active, target }: { active: boolean; target: number }) {
   return <>{val}</>
 }
 
-/* ---------- Version B: a continuous "signal pipeline" that builds one signal card
-   end-to-end as a pulse travels through Scan → Score → Alert, then cycles tickers. ---------- */
-const PIPELINE_CYCLE_MS = 9000
-
-function DemoWindowB({ setActive }: { setActive: (n: number) => void }) {
-  const [progress, setProgress] = useState(0)
-  const [signalIndex, setSignalIndex] = useState(0)
-
-  useEffect(() => {
-    const stepMs = 80
-    const inc = 100 / (PIPELINE_CYCLE_MS / stepMs)
-    const id = setInterval(() => {
-      setProgress((p) => {
-        const next = p + inc
-        if (next >= 100) {
-          setSignalIndex((si) => (si + 1) % signals.length)
-          return 0
-        }
-        return next
-      })
-    }, stepMs)
-    return () => clearInterval(id)
-  }, [])
-
-  const activeNode = progress < 34 ? 0 : progress < 67 ? 1 : 2
-
-  useEffect(() => {
-    setActive(activeNode)
-  }, [activeNode, setActive])
-
-  const signal = signals[signalIndex]
-
-  const jumpTo = (node: number) => setProgress(node === 0 ? 0 : node === 1 ? 34 : 67)
-
-  return (
-    <div className="demo-window">
-      <div className="demo-titlebar">
-        <div className="demo-dots"><span /><span /><span /></div>
-        <span className="demo-titletext mono">tradesignal.app — signal pipeline</span>
-      </div>
-      <div className="demo-body">
-        <div className="pipeline-wrap">
-          <div className="pipeline-track">
-            <div className="pipeline-line">
-              <div className="pipeline-line-fill" style={{ width: `${progress}%` }} />
-            </div>
-            {(['SCAN', 'SCORE', 'ALERT'] as const).map((label, i) => {
-              const Icon = i === 0 ? Search : i === 1 ? Activity : Bell
-              return (
-                <button
-                  key={label}
-                  className={`pipeline-node ${activeNode >= i ? 'reached' : ''} ${activeNode === i ? 'active' : ''}`}
-                  onClick={() => jumpTo(i)}
-                >
-                  <span className="pipeline-node-icon"><Icon size={14} /></span>
-                  <span className="mono pipeline-node-label">{label}</span>
-                </button>
-              )
-            })}
-          </div>
-
-          <div className="ticket-card">
-            <div className={`ticket-row ${activeNode >= 0 ? 'revealed' : ''}`}>
-              <span style={{ fontFamily: '"Playfair Display", serif', fontSize: 20, fontWeight: 700 }}>{signal.ticker}</span>
-              <span className="mono" style={{ fontSize: 11, color: signal.dir === 'LONG' ? '#7ec8a0' : '#c87e7e', marginLeft: 10 }}>
-                {signal.dir === 'LONG' ? '▲' : '▼'} {signal.dir}
-              </span>
-            </div>
-            <div className={`ticket-row ${activeNode >= 1 ? 'revealed' : ''}`}>
-              <span className="mono" style={{ fontSize: 11, color: 'rgba(232,224,212,0.6)' }}>RSI {signal.rsi} · {signal.macd}</span>
-              <span style={{ fontFamily: '"Playfair Display", serif', fontSize: 22, fontWeight: 700, marginLeft: 'auto', color: signal.score >= 55 ? '#e8e0d4' : 'rgba(232,224,212,0.4)' }}>{signal.score}</span>
-            </div>
-            <div className={`ticket-row levels ${activeNode >= 2 ? 'revealed' : ''}`}>
-              <span className="mono">E <strong>${signal.entry}</strong></span>
-              <span className="mono" style={{ color: '#c87e7e' }}>S ${signal.stop}</span>
-              <span className="mono" style={{ color: '#7ec8a0' }}>T ${signal.target}</span>
-            </div>
-          </div>
-
-          <div className="pipeline-dots">
-            {signals.map((s, i) => (
-              <button
-                key={s.ticker}
-                className={`pipeline-dot ${i === signalIndex ? 'active' : ''}`}
-                onClick={() => { setSignalIndex(i); setProgress(0) }}
-                aria-label={s.ticker}
-              />
-            ))}
-          </div>
-        </div>
-      </div>
-    </div>
-  )
-}
-
 const scanTickers = [
   { t: 'AAPL', pct: 40 },
   { t: 'NVDA', pct: 85 },
@@ -167,7 +72,7 @@ const scoreRows = [
   { label: 'News Sentiment · Negative', pct: 55 },
 ]
 
-function DemoWindowA({ active, setActive }: { active: number; setActive: (n: number) => void }) {
+function DemoWindow({ active, setActive }: { active: number; setActive: (n: number) => void }) {
   return (
     <div className="demo-window">
       <div className="demo-titlebar">
@@ -331,32 +236,6 @@ const CSS = `
   @keyframes barGrowScale { to { transform: scaleX(1); } }
   @keyframes scanSweepTop { 0% { top: -50px; } 100% { top: 260px; } }
 
-  /* Pipeline demo (version B) */
-  .pipeline-wrap { width: 100%; display: flex; flex-direction: column; gap: 32px; }
-  .pipeline-track { position: relative; display: flex; justify-content: space-between; align-items: center; padding: 0 4px; }
-  .pipeline-line { position: absolute; left: 24px; right: 24px; top: 15px; height: 2px; background: rgba(232,224,212,0.12); }
-  .pipeline-line-fill { height: 100%; background: rgba(126,200,160,0.65); transition: width 0.08s linear; }
-  .pipeline-node { position: relative; z-index: 1; background: none; border: none; display: flex; flex-direction: column; align-items: center; gap: 8px; cursor: pointer; padding: 0; }
-  .pipeline-node-icon { width: 32px; height: 32px; border-radius: 50%; border: 1.5px solid rgba(232,224,212,0.2); display: flex; align-items: center; justify-content: center; color: rgba(232,224,212,0.35); background: #050505; transition: all 0.25s; }
-  .pipeline-node.reached .pipeline-node-icon { border-color: rgba(126,200,160,0.55); color: #7ec8a0; }
-  .pipeline-node.active .pipeline-node-icon { border-color: #e8e0d4; color: #e8e0d4; box-shadow: 0 0 0 4px rgba(232,224,212,0.08); }
-  .pipeline-node-label { font-size: 9px; letter-spacing: 0.08em; color: rgba(232,224,212,0.4); }
-  .pipeline-node.active .pipeline-node-label, .pipeline-node.reached .pipeline-node-label { color: rgba(232,224,212,0.7); }
-
-  .ticket-card { border: 1px solid rgba(232,224,212,0.12); background: rgba(232,224,212,0.02); padding: 20px; border-radius: 4px; display: flex; flex-direction: column; gap: 16px; }
-  .ticket-row { display: flex; align-items: center; opacity: 0; transform: translateY(6px); transition: opacity 0.4s ease, transform 0.4s ease; min-height: 26px; }
-  .ticket-row.revealed { opacity: 1; transform: none; }
-  .ticket-row.levels { gap: 16px; flex-wrap: wrap; font-size: 12px; }
-
-  .pipeline-dots { display: flex; gap: 6px; justify-content: center; }
-  .pipeline-dot { width: 6px; height: 6px; border-radius: 50%; background: rgba(232,224,212,0.2); border: none; padding: 0; cursor: pointer; transition: background 0.2s, transform 0.2s; }
-  .pipeline-dot.active { background: rgba(232,224,212,0.8); transform: scale(1.3); }
-
-  /* Comparison toggle — remove once you've picked a version */
-  .version-toggle { display: flex; gap: 8px; }
-  .version-toggle button { background: transparent; border: 1px solid rgba(232,224,212,0.2); color: rgba(232,224,212,0.5); font-family: "DM Mono", monospace; font-size: 10px; letter-spacing: 0.06em; padding: 7px 16px; cursor: pointer; transition: all 0.2s; }
-  .version-toggle button.active { border-color: #e8e0d4; color: #0a0a0a; background: #e8e0d4; }
-
   /* Responsive grid classes */
   .hero-grid { display: grid; grid-template-columns: 1fr 420px; gap: 80px; align-items: start; }
   .feature-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px; background: rgba(232,224,212,0.15); }
@@ -387,7 +266,6 @@ const CSS = `
     .btn-dark, .btn-outline { padding: 10px 16px !important; font-size: 11px !important; }
     .hero-btns { flex-wrap: wrap; }
     .signal-feed { display: none !important; }
-    .how-header { flex-direction: column !important; align-items: flex-start !important; gap: 16px !important; }
   }
 `
 
@@ -409,7 +287,6 @@ function getMarketStatus() {
 export default function LandingPage() {
   const [marketStatus, setMarketStatus] = useState('NYSE OPEN')
   const [demoStep, setDemoStep] = useCycle(3, DEMO_STEP_DURATION)
-  const [demoVersion, setDemoVersion] = useState<'A' | 'B'>('A')
 
   useEffect(() => {
     setMarketStatus(getMarketStatus())
@@ -532,18 +409,11 @@ export default function LandingPage() {
 
       {/* How it works + demo */}
       <section className="lp-section" style={{ padding: '80px 48px', borderBottom: '1px solid rgba(232,224,212,0.07)' }}>
-        <div className="how-header" style={{ marginBottom: '48px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
-          <div>
-            <div className="divider" />
-            <h2 className="lp-h2" style={{ fontSize: '40px', fontWeight: 900, letterSpacing: '-0.02em', lineHeight: 1.1, color: '#e8e0d4' }}>
-              How it works.
-            </h2>
-          </div>
-          {/* TEMP: comparison toggle for picking a version — delete this block once decided */}
-          <div className="version-toggle">
-            <button className={demoVersion === 'A' ? 'active' : ''} onClick={() => setDemoVersion('A')}>VERSION A</button>
-            <button className={demoVersion === 'B' ? 'active' : ''} onClick={() => setDemoVersion('B')}>VERSION B</button>
-          </div>
+        <div style={{ marginBottom: '48px' }}>
+          <div className="divider" />
+          <h2 className="lp-h2" style={{ fontSize: '40px', fontWeight: 900, letterSpacing: '-0.02em', lineHeight: 1.1, color: '#e8e0d4' }}>
+            How it works.
+          </h2>
         </div>
         <div className="how-grid">
           <div>
@@ -564,11 +434,7 @@ export default function LandingPage() {
             ))}
           </div>
 
-          {demoVersion === 'A' ? (
-            <DemoWindowA active={demoStep} setActive={setDemoStep} />
-          ) : (
-            <DemoWindowB setActive={setDemoStep} />
-          )}
+          <DemoWindow active={demoStep} setActive={setDemoStep} />
         </div>
       </section>
 

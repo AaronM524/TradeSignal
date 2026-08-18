@@ -4,9 +4,23 @@ import { detectSignal } from '@/lib/signals/signal-engine'
 import { fetchTickerNews, calculateNewsBoost } from '@/lib/finnhub-news'
 import { createClient } from '@/lib/supabase/server'
 
+// If deployed on Vercel, this raises the allowed execution time for this route
+// (requires a plan that supports it — Hobby is capped around 10s regardless).
+// Harmless no-op on other platforms.
+export const maxDuration = 30
+
 const DEFAULT_TICKERS = [
   'SPY', 'QQQ', 'AAPL', 'MSFT', 'NVDA', 'TSLA', 'AMD', 'PLTR', 'SOFI', 'SMR',
 ]
+
+// How many tickers to process at the same time. Higher = faster scans, but more
+// simultaneous load on Yahoo Finance / Finnhub — if you start seeing 429 rate-limit
+// errors in the logs, lower this back down rather than removing it entirely.
+const SCAN_CONCURRENCY = 4
+
+// Max time to wait on any single external call before giving up on that ticker.
+// Without this, one slow/hanging API call could stall the entire scan indefinitely.
+const CALL_TIMEOUT_MS = 8000
 
 type SignalResult = {
   ticker: string
@@ -56,8 +70,73 @@ function setCachedNews(ticker: string, data: any) {
   newsCache.set(ticker, { data, timestamp: Date.now() })
 }
 
-function sleep(ms: number) {
-  return new Promise((resolve) => setTimeout(resolve, ms))
+// Races a promise against a timer so a single slow/hanging external call
+// can never block the rest of the scan — it just gets marked failed instead.
+function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error(`${label} timed out after ${ms}ms`)), ms)
+    promise.then(
+      (res) => { clearTimeout(timer); resolve(res) },
+      (err) => { clearTimeout(timer); reject(err) }
+    )
+  })
+}
+
+type TickerScanResult = { ticker: string; signal: SignalResult | null; failed: boolean }
+
+async function scanTicker(ticker: string, minScore: number): Promise<TickerScanResult> {
+  try {
+    const quote = await withTimeout(fetchQuote(ticker), CALL_TIMEOUT_MS, `${ticker} quote`)
+    if (!quote) return { ticker, signal: null, failed: true }
+
+    let indicators = getCachedIndicators(ticker)
+    if (!indicators) {
+      indicators = await withTimeout(fetchTechnicalIndicators(ticker), CALL_TIMEOUT_MS, `${ticker} indicators`)
+      if (indicators) setCachedIndicators(ticker, indicators)
+    }
+    if (!indicators) return { ticker, signal: null, failed: true }
+
+    let news = getCachedNews(ticker)
+    if (!news) {
+      news = await withTimeout(fetchTickerNews(ticker, 3), CALL_TIMEOUT_MS, `${ticker} news`)
+      setCachedNews(ticker, news)
+    }
+
+    const newsBoost = calculateNewsBoost(news)
+
+    const signal = detectSignal({
+      ticker,
+      quote: quote as any,
+      indicators: indicators as any,
+      newsBoost,
+    }) as SignalResult | null
+
+    if (signal) {
+      signal.news = news.slice(0, 2)
+      signal.newsBoost = newsBoost
+
+      const newsLabel = newsBoost > 0 ? `📰+${newsBoost}` : newsBoost < 0 ? `📰${newsBoost}` : ''
+      console.log(`[${ticker}] score:${signal.score} type:${signal.signalType} rsi:${indicators.rsi.toFixed(1)} macd:${indicators.macdCrossover} ${newsLabel}`)
+    }
+
+    return { ticker, signal, failed: false }
+  } catch (error) {
+    console.error(`Failed scanning ${ticker}:`, error)
+    return { ticker, signal: null, failed: true }
+  }
+}
+
+// Processes tickers in fixed-size concurrent batches instead of one at a time.
+// E.g. 10 tickers at concurrency 4 → 3 batches, each limited by its slowest
+// ticker, instead of 10 tickers run fully back-to-back with a sleep between each.
+async function scanAllTickers(tickers: string[], minScore: number): Promise<TickerScanResult[]> {
+  const results: TickerScanResult[] = []
+  for (let i = 0; i < tickers.length; i += SCAN_CONCURRENCY) {
+    const batch = tickers.slice(i, i + SCAN_CONCURRENCY)
+    const batchResults = await Promise.all(batch.map((ticker) => scanTicker(ticker, minScore)))
+    results.push(...batchResults)
+  }
+  return results
 }
 
 export async function GET(request: NextRequest) {
@@ -70,68 +149,16 @@ export async function GET(request: NextRequest) {
       ? tickersParam.split(',').map((t) => t.trim().toUpperCase()).filter(Boolean)
       : DEFAULT_TICKERS
 
+    const results = await scanAllTickers(tickers, minScore)
+
     const signals: SignalResult[] = []
     const failedTickers: string[] = []
 
-    for (let i = 0; i < tickers.length; i++) {
-      const ticker = tickers[i]
-
-      try {
-        // Fetch live quote
-        const quote = await fetchQuote(ticker)
-        if (!quote) {
-          failedTickers.push(ticker)
-          continue
-        }
-
-        // Get indicators from cache or fetch
-        let indicators = getCachedIndicators(ticker)
-        if (!indicators) {
-          indicators = await fetchTechnicalIndicators(ticker)
-          if (indicators) setCachedIndicators(ticker, indicators)
-        }
-
-        if (!indicators) {
-          failedTickers.push(ticker)
-          continue
-        }
-
-        // Get news from cache or fetch
-        let news = getCachedNews(ticker)
-        if (!news) {
-          news = await fetchTickerNews(ticker, 3)
-          setCachedNews(ticker, news)
-        }
-
-        const newsBoost = calculateNewsBoost(news)
-
-        // Generate signal
-        const signal = detectSignal({
-          ticker,
-          quote: quote as any,
-          indicators: indicators as any,
-          newsBoost, // passed to signal engine for score adjustment
-        }) as SignalResult | null
-
-        if (signal) {
-          // Attach news to signal for display on card
-          signal.news = news.slice(0, 2) // show top 2 headlines
-          signal.newsBoost = newsBoost
-
-          const newsLabel = newsBoost > 0 ? `📰+${newsBoost}` : newsBoost < 0 ? `📰${newsBoost}` : ''
-          console.log(`[${ticker}] score:${signal.score} type:${signal.signalType} rsi:${indicators.rsi.toFixed(1)} macd:${indicators.macdCrossover} ${newsLabel}`)
-
-          if (signal.score >= minScore) {
-            signals.push(signal)
-          }
-        }
-      } catch (error) {
-        console.error(`Failed scanning ${ticker}:`, error)
-        failedTickers.push(ticker)
-      }
-
-      if (i < tickers.length - 1) {
-        await sleep(1500)
+    for (const result of results) {
+      if (result.failed) {
+        failedTickers.push(result.ticker)
+      } else if (result.signal && result.signal.score >= minScore) {
+        signals.push(result.signal)
       }
     }
 

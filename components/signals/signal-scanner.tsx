@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { Bell, BellOff, Zap, Activity, Pause, Play } from 'lucide-react'
+import { Zap, Activity, Pause, Play } from 'lucide-react'
 import { useToast } from '@/components/ui/use-toast'
 import type { TradeSignal } from '@/lib/types'
 
@@ -61,8 +61,6 @@ export function SignalScanner({
 }: SignalScannerProps) {
   const [isScanning, setIsScanning] = useState(false)
   const [lastScan, setLastScan] = useState<Date | null>(null)
-  const [notificationsEnabled, setNotificationsEnabled] = useState(false)
-  const [notificationPermission, setNotificationPermission] = useState<NotificationPermission>('default')
   const [signalCount, setSignalCount] = useState(0)
   const [highConfidenceCount, setHighConfidenceCount] = useState(0)
   const [autoScanEnabled, setAutoScanEnabled] = useState(() => {
@@ -70,13 +68,6 @@ export function SignalScanner({
     return localStorage.getItem(AUTO_SCAN_KEY) === 'true'
   })
   const { toast } = useToast()
-
-  useEffect(() => {
-    if ('Notification' in window) {
-      setNotificationPermission(Notification.permission)
-      setNotificationsEnabled(Notification.permission === 'granted')
-    }
-  }, [])
 
   const toggleAutoScan = () => {
     const next = !autoScanEnabled
@@ -86,43 +77,6 @@ export function SignalScanner({
       title: next ? 'Auto-scan enabled' : 'Auto-scan disabled',
       description: next ? 'Scanner will run automatically.' : 'Use Scan Now to scan manually.',
     })
-  }
-
-  const requestNotificationPermission = async () => {
-    if (!('Notification' in window)) {
-      toast({ title: 'Notifications not supported', variant: 'destructive' })
-      return
-    }
-    const permission = await Notification.requestPermission()
-    setNotificationPermission(permission)
-    setNotificationsEnabled(permission === 'granted')
-    if (permission === 'granted') {
-      toast({ title: 'Notifications enabled' })
-    }
-  }
-
-  const playNotificationSound = () => {
-    try {
-      const audioContext = new (window.AudioContext || (window as typeof window & { webkitAudioContext: typeof AudioContext }).webkitAudioContext)()
-      const oscillator = audioContext.createOscillator()
-      const gainNode = audioContext.createGain()
-      oscillator.connect(gainNode)
-      gainNode.connect(audioContext.destination)
-      oscillator.frequency.value = 800
-      oscillator.type = 'sine'
-      gainNode.gain.value = 0.3
-      oscillator.start()
-      setTimeout(() => { oscillator.stop(); audioContext.close() }, 200)
-    } catch { /* silent fail */ }
-  }
-
-  const sendNotification = (signal: TradeSignal) => {
-    if (!notificationsEnabled || notificationPermission !== 'granted') return
-    const icon = signal.signalType === 'bullish_entry' ? '📈' : '📉'
-    const title = `${icon} ${signal.ticker} - ${signal.signalType === 'bullish_entry' ? 'Bullish' : 'Bearish'} Signal`
-    const body = `Score: ${signal.score} | Entry: $${(signal.entry ?? signal.entryPrice ?? 0).toFixed(2)} | Target: $${(signal.target ?? signal.targetPrice ?? 0).toFixed(2)}`
-    if (signal.score >= 80) playNotificationSound()
-    new Notification(title, { body, icon: '/favicon.ico', tag: signal.id, requireInteraction: true })
   }
 
   const scanForSignals = useCallback(async () => {
@@ -140,7 +94,6 @@ export function SignalScanner({
       setHighConfidenceCount(newSignals.filter(s => s.score >= 70).length)
       for (const signal of newSignals) {
         if (signal.score >= 70) {
-          sendNotification(signal)
           toast({
             title: `${signal.signalType === 'bullish_entry' ? '▲' : '▼'} New Signal: ${signal.ticker}`,
             description: `Score: ${signal.score} — ${signal.triggers?.map(t => t.type).join(', ') || 'Multiple indicators'}`,
@@ -156,7 +109,7 @@ export function SignalScanner({
     } finally {
       setIsScanning(false)
     }
-  }, [isScanning, notificationsEnabled, notificationPermission, onNewSignals, toast])
+  }, [isScanning, onNewSignals, toast])
 
   useEffect(() => {
     if (!autoScanEnabled) return
@@ -209,15 +162,6 @@ export function SignalScanner({
       >
         {autoScanEnabled ? <Pause size={10} /> : <Play size={10} />}
         Auto {autoScanEnabled ? 'On' : 'Off'}
-      </button>
-
-      {/* Alerts toggle */}
-      <button
-        className={`scanner-btn ${notificationsEnabled ? 'active' : ''}`}
-        onClick={notificationsEnabled ? () => setNotificationsEnabled(false) : requestNotificationPermission}
-      >
-        {notificationsEnabled ? <Bell size={10} /> : <BellOff size={10} />}
-        {notificationsEnabled ? 'Alerts On' : 'Enable Alerts'}
       </button>
     </div>
   )
